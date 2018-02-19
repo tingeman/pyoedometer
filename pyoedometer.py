@@ -473,7 +473,7 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
 def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
 
     # select the data
-    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=90, max_len=180)
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=60, max_len=120)
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
     lvdt_start = add_minutes(lvdt_step, t0=step_starttime)
     pt100_start = add_minutes(pt100_step, t0=step_starttime)
@@ -505,13 +505,17 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     axs[1].get_shared_x_axes().join(axs[1],axs[2], axs[3])
     
     # Plot the first lvdt
-    l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['strain'], '-k', zorder=10)
-    l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+    l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='LVDT strain', zorder=10)
     
     axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
     axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+
+    y0 = lvdt_step[lvdt_step['minutes']==0]['eps'].values[0]
+    axs[0].axhline(y=y0, ls='--', color='0.65', zorder=-100)
+    axs[1].axhline(y=y0, ls='--', color='0.65', zorder=-100)
     
     # invert the direction of both y-axes
     axs[1].invert_yaxis()
@@ -543,8 +547,8 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                  fontsize=14)
 
     axs[0].set_xlabel('Time [min]')
-    axs[0].set_ylabel('Strain [mm]')
-    axs[1].set_ylabel('Strain [mm]')
+    axs[0].set_ylabel('Strain [%]')
+    axs[1].set_ylabel('Strain [%]')
     #ax1a.set_ylabel('Strain [%]')
     axs[2].set_ylabel('Temperature [C]')
     axs[3].set_ylabel('Temperature [C]')
@@ -566,7 +570,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     # ax1.legend(zorder=0)
     # ax2.legend(zorder=0)
     
-    def ignore_spikes(ax, buffer, percentiles=[1,5], threshold=1):
+    def ignore_spikes(ax, buffer, percentiles=[1,5], threshold=1, min_lim=None):
         ylim = ax.get_ylim()
         if ylim[0]>ylim[1]:
             inverted = True
@@ -585,6 +589,12 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
             
         if np.abs(np.nanpercentile(dat,percentiles[1])-np.nanpercentile(dat,percentiles[0])) < threshold:
             yln = np.nanpercentile(dat,percentiles[0])-buffer
+        
+        if min_lim is not None:
+            if ylx < min_lim[1]:
+                ylx = min_lim[1]
+            if yln > min_lim[0]:
+                yln = min_lim[0]
         
         if inverted:
             ax.set_ylim([ylx, yln])
@@ -611,13 +621,24 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
         else:
             ax.set_ylim([yln, ylx])
             
-    min_lims = [0.2, 0.4, 0.4]
+    min_lims = [0.1, 1, 0.4, 2]
     
-    ignore_spikes(axs[1], min_lims[0]/2.)
-    min_ylim(axs[1], min_lims[0])
-    ignore_spikes(axs[2], min_lims[1]/2.)
-    min_ylim(axs[2], min_lims[1])            
-    min_ylim(axs[3], min_lims[2])            
+    min_ylim(axs[0], min_lims[0])
+    
+    #if step_info['step'] == 27:
+    #    pdb.set_trace()
+    
+    min_lim = np.sort([lvdt_step['eps'][0], lvdt_step['eps'][-1]])
+    min_lim[0] -= 0.2
+    min_lim[1] += 0.2
+    
+    ignore_spikes(axs[1], min_lims[1]/2., min_lim=min_lim)
+    min_ylim(axs[1], min_lims[1])
+    
+    ignore_spikes(axs[2], min_lims[2]/2.)
+    min_ylim(axs[2], min_lims[2])            
+    
+    min_ylim(axs[3], min_lims[3])            
     
     f.tight_layout()
     
