@@ -491,7 +491,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     #                                   'width_ratios':  [1, 3]},
     #                      figsize=(10, 12))
 
-    f = plt.figure(figsize=(10,8))
+    f = plt.figure(figsize=(10,9))
     gs = matplotlib.gridspec.GridSpec(12, 4)
     plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))
     plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))
@@ -502,13 +502,16 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     axs = f.axes
     
     # make sure the top 3 axes share the same x-axis
-    axs[1].get_shared_x_axes().join(axs[2], axs[3])
+    axs[1].get_shared_x_axes().join(axs[1],axs[2], axs[3])
     
     # Plot the first lvdt
     l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['strain'], '-k', zorder=10)
     l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
     
-    axs[0].axvline(x=0, ls='--', color='k')
+    axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
+    axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+    axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+    axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     
     # invert the direction of both y-axes
     axs[1].invert_yaxis()
@@ -550,7 +553,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     labels = [h.get_label() for h in handles]
 
     axs[4].axis('off')
-    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=12)
+    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=10)
     
     axes = [axs[1], axs[2]]
     if len(hobo_step) > 0:
@@ -563,39 +566,59 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     # ax1.legend(zorder=0)
     # ax2.legend(zorder=0)
     
-    min_lims = [0.4, 0.4, 0.4]
-    max_lims = [5, 2, 20]
-    
-    ylim = axs[1].get_ylim()
-    if np.abs(ylim[0]-ylim[1]) < min_lims[0]:
-        center = (ylim[1]+ylim[0])/2.
-        axs[1].set_ylim([center+min_lims[0]/2., center-min_lims[0]/2.])
-    
-    ylim = axs[2].get_ylim()
-    yln = min(ylim)
-    ylx = max(ylim)
-    
-    dat = []
-    for l in axs[2].lines:
-        dat.extend(list(l.get_data()[1]))
-    
-    if np.abs(np.nanpercentile(dat,99)-np.nanpercentile(dat,95)) < 1:
-        ylx = np.nanpercentile(dat,99)+0.1
+    def ignore_spikes(ax, buffer, percentiles=[1,5], threshold=1):
+        ylim = ax.get_ylim()
+        if ylim[0]>ylim[1]:
+            inverted = True
+        else:
+            inverted = False
+            
+        yln = min(ylim)
+        ylx = max(ylim)
         
-    if np.abs(np.nanpercentile(dat,5)-np.nanpercentile(dat,1)) < 1:
-        yln = np.nanpercentile(dat,1)-0.1
-    
-    axs[2].set_ylim([yln, ylx])
-    
-    if np.abs(ylim[0]-ylim[1]) < min_lims[1]:
-        center = (ylim[1]+ylim[0])/2.
-        axs[2].set_ylim([center-min_lims[1]/2., center+min_lims[1]/2.])
+        dat = []
+        for l in ax.lines:
+            dat.extend(list(l.get_data()[1]))
+        
+        if np.abs(np.nanpercentile(dat,100-percentiles[0])-np.nanpercentile(dat,100-percentiles[1])) < threshold:
+            ylx = np.nanpercentile(dat,100-percentiles[0])+buffer
+            
+        if np.abs(np.nanpercentile(dat,percentiles[1])-np.nanpercentile(dat,percentiles[0])) < threshold:
+            yln = np.nanpercentile(dat,percentiles[0])-buffer
+        
+        if inverted:
+            ax.set_ylim([ylx, yln])
+        else:
+            ax.set_ylim([yln, ylx])
 
-    ylim = axs[3].get_ylim()
-    if np.abs(ylim[0]-ylim[1]) < min_lims[2]:
-        center = (ylim[1]+ylim[0])/2.
-        axs[3].set_ylim([center-min_lims[2]/2., center+min_lims[2]/2.])        
+    def min_ylim(ax, min_lim):
+        ylim = ax.get_ylim()
+        if ylim[0]>ylim[1]:
+            inverted = True
+        else:
+            inverted = False
+
+        yln = min(ylim)
+        ylx = max(ylim)
+    
+        if ylx-yln < min_lim:
+            center = (yln+ylx)/2.
+            yln = center-min_lim/2.
+            ylx = center+min_lim/2.
         
+        if inverted:
+            ax.set_ylim([ylx, yln])
+        else:
+            ax.set_ylim([yln, ylx])
+            
+    min_lims = [0.2, 0.4, 0.4]
+    
+    ignore_spikes(axs[1], min_lims[0]/2.)
+    min_ylim(axs[1], min_lims[0])
+    ignore_spikes(axs[2], min_lims[1]/2.)
+    min_ylim(axs[2], min_lims[1])            
+    min_ylim(axs[3], min_lims[2])            
+    
     f.tight_layout()
     
     return f    
@@ -968,7 +991,7 @@ if __name__ == '__main__':
     steps_to_interpret = [d['step'] for d in interpret]
     
     steps_to_plot = [] # [d['step'] for d in history]
-    steps_to_overview = [0,1,2,3,4]  # [d['step'] for d in history]
+    steps_to_overview = [d['step'] for d in history]
     
     for step_id, hist in enumerate(history):
         
@@ -980,7 +1003,9 @@ if __name__ == '__main__':
             hobo_step = add_minutes(hobo_step)
         else:
             continue
-            
+        
+        print('Plotting {0:.0f} kPa, {1:.0f} C'.format(hist['load'], hist['temp']))
+        
         if hist['step'] in steps_to_overview:
             #f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
             f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
