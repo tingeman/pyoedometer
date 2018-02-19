@@ -486,54 +486,51 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     
     hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
     
-    f, axs = plt.subplots(nrows=4, ncols=2, sharex=False, sharey=False,
-                          gridspec_kw={'height_ratios': [4, 4, 4, 1],
-                                       'width_ratios':  [1, 3]},
-                          figsize=(10, 12))
+    #f, axs = plt.subplots(nrows=4, ncols=2, sharex=False, sharey=False,
+    #                      gridspec_kw={'height_ratios': [4, 4, 4, 1],
+    #                                   'width_ratios':  [1, 3]},
+    #                      figsize=(10, 12))
 
+    f = plt.figure(figsize=(10,8))
+    gs = matplotlib.gridspec.GridSpec(12, 4)
+    plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))
+    plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))
+    plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))
+    plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))
+    plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))
+    
+    axs = f.axes
+    
     # make sure the top 3 axes share the same x-axis
-    axs[0,0].get_shared_x_axes().join(axs[1,0], axs[2,0])
-    axs[0,1].get_shared_x_axes().join(axs[1,1], axs[2,1])
+    axs[1].get_shared_x_axes().join(axs[2], axs[3])
     
     # Plot the first lvdt
-    l, = axs[0,0].plot(lvdt_start['minutes'], lvdt_start['strain'], '-k', zorder=10)
-    l1, = axs[0,1].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['strain'], '-k', zorder=10)
+    l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
     
-    axs[0,0].axvline(x=0, ls='--', color='k')
+    axs[0].axvline(x=0, ls='--', color='k')
     
     # invert the direction of both y-axes
-    axs[0,1].invert_yaxis()
-    axs[0,0].invert_yaxis()
+    axs[1].invert_yaxis()
+    axs[0].invert_yaxis()
     
-    l3, = axs[1,1].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    l3, = axs[2].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
     handles = [l1, l3]
     
     if len(hobo_step) > 0:
-        #l5, = ax2.plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
+        l5, = axs[2].plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
         #l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
-        l7, = axs[2,1].plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
+        l7, = axs[3].plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
         #handles.extend([l5, l6, l7])
-        handles.extend([l7])
+        handles.extend([l5, l7])
     else:
-        axs[2,1].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
+        axs[3].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
         bbox_props = dict(boxstyle="square,pad=0.3", fc="none", ec="none")
-        t = axs[2,1].text(0.5, 0.5, "No data available", 
+        t = axs[3].text(0.5, 0.5, "No data available", 
                           ha="center", va="center", rotation=0,
                           size=15, color='0.75', bbox=bbox_props,
-                          transform=axs[2,1].transAxes)
+                          transform=axs[3].transAxes)
         
-        formatter = axs[1,0].xaxis.get_major_formatter()
-        locator = axs[1,0].xaxis.get_major_locator()
-    
-        axs[1,0].xaxis.set_major_formatter(formatter)
-        axs[1,0].xaxis.set_major_locator(locator)
-        
-        #axs[2,1].annotate('No data available', 
-        #                  xy=(0.5, 0.5), xytext=(0.5, 0.5), 
-        #                  xycoords=("axes fraction", "axes fraction"), 
-        #                  textcoords=("axes fraction", "axes fraction"),
-        #                  arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth':1}, 
-        #                  zorder=100, va='center', ha='center')
         
     # Plot figure title
     plt.suptitle('Step: {0},  Date: {1},  Load: {2}, kPa  Temp: {3} C'.format(step_info['step'],
@@ -542,24 +539,22 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                                                                               step_info['temp']),
                  fontsize=14)
 
-    axs[0,1].set_ylabel('Strain [mm]')
+    axs[0].set_xlabel('Time [min]')
+    axs[0].set_ylabel('Strain [mm]')
+    axs[1].set_ylabel('Strain [mm]')
     #ax1a.set_ylabel('Strain [%]')
-    axs[1,1].set_ylabel('Temperature [C]')
-    axs[2,1].set_ylabel('Temperature [C]')
+    axs[2].set_ylabel('Temperature [C]')
+    axs[3].set_ylabel('Temperature [C]')
 
     # plot common legend for all subplots
     labels = [h.get_label() for h in handles]
 
-    axs[3,0].axis('off')
-    axs[3,1].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=12)
-    axs[3,1].axis('off')
-    axs[1,0].axis('off')
-    axs[2,0].axis('off')
+    axs[4].axis('off')
+    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=12)
     
-    
-    axes = [axs[0,1], axs[1,1]]
+    axes = [axs[1], axs[2]]
     if len(hobo_step) > 0:
-        axes.append(axs[2,1])
+        axes.append(axs[3])
         
     for ax in axes:
         ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
@@ -569,21 +564,39 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     # ax2.legend(zorder=0)
     
     min_lims = [0.4, 0.4, 0.4]
+    max_lims = [5, 2, 20]
     
-    ylim = axs[0,1].get_ylim()
+    ylim = axs[1].get_ylim()
     if np.abs(ylim[0]-ylim[1]) < min_lims[0]:
         center = (ylim[1]+ylim[0])/2.
-        axs[0,1].set_ylim([center+min_lims[0]/2., center-min_lims[0]/2.])
+        axs[1].set_ylim([center+min_lims[0]/2., center-min_lims[0]/2.])
     
-    ylim = axs[1,1].get_ylim()
+    ylim = axs[2].get_ylim()
+    yln = min(ylim)
+    ylx = max(ylim)
+    
+    dat = []
+    for l in axs[2].lines:
+        dat.extend(list(l.get_data()[1]))
+    
+    if np.abs(np.nanpercentile(dat,99)-np.nanpercentile(dat,95)) < 1:
+        ylx = np.nanpercentile(dat,99)+0.1
+        
+    if np.abs(np.nanpercentile(dat,5)-np.nanpercentile(dat,1)) < 1:
+        yln = np.nanpercentile(dat,1)-0.1
+    
+    axs[2].set_ylim([yln, ylx])
+    
     if np.abs(ylim[0]-ylim[1]) < min_lims[1]:
         center = (ylim[1]+ylim[0])/2.
-        axs[1,1].set_ylim([center-min_lims[1]/2., center+min_lims[1]/2.])
-        
-    ylim = axs[2,1].get_ylim()
+        axs[2].set_ylim([center-min_lims[1]/2., center+min_lims[1]/2.])
+
+    ylim = axs[3].get_ylim()
     if np.abs(ylim[0]-ylim[1]) < min_lims[2]:
         center = (ylim[1]+ylim[0])/2.
-        axs[2,1].set_ylim([center-min_lims[2]/2., center+min_lims[2]/2.])        
+        axs[3].set_ylim([center-min_lims[2]/2., center+min_lims[2]/2.])        
+        
+    f.tight_layout()
     
     return f    
     
