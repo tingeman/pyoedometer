@@ -345,7 +345,7 @@ def read_history(fname):
     return dat
 
 
-def select_data(dfs, history, step=1, buffer=0):
+def select_data(dfs, hist, buffer=0):
     """Returns the subset of the DataFrame(s) data that fall within
     the start and end date and time of the specified load step.
     
@@ -360,12 +360,9 @@ def select_data(dfs, history, step=1, buffer=0):
     ----------
     dfs: DataFrame or list of DataFrames
         The data to subset from. Must have timestamp index.
-    history: list of dicts
-        One element per load step. Each element is a dictionary conataining
-        the keys 'date', 'time1', 'date2', 'time2'. Dates must be
-        datetime.date objects and times datetime.time objects.
-    step: int
-        Index of the load step to use. Index is zero-based
+    hist: dict
+        Dictionary conataining the keys 'date', 'time1', 'date2', 'time2'. 
+        Dates must be datetime.date objects and times datetime.time objects.
     buffer: int
         Time in seconds to include before start of load step
     
@@ -375,18 +372,11 @@ def select_data(dfs, history, step=1, buffer=0):
         The subset of data from the input DataFrame(s)
     """
     
-    
-    #steps = [d['step'] for d in history]
-    #idx = list(range(len(history)))
-    #index_for_step = dict(zip(steps, idx))
-    
     if hasattr(dfs, 'extend'):
         dfs_islist = True
     else:
         dfs_islist = False
         
-    #hist = history[index_for_step[step]]
-    hist = history[step]
     
     if hist['date'] is None or hist['time1'] is None:
         raise ValueError('The load step must have at least the start date and time defined')       # Only plot if the step has a date-value assigned
@@ -397,19 +387,11 @@ def select_data(dfs, history, step=1, buffer=0):
     # Get the end date and time
     if ('date2' in hist and hist['date2'] is not None) and ('time2' in hist and hist['time2'] is not None):
         step_endtime = dt.datetime.combine(hist['date2'], hist['time2'])
-    
-    elif step+1 > len(history)-1 or history[step + 1]['time1'] is None:
-        pdb.set_trace()
-        # If this is the last step, use the last time in the dataset
+    else:
         if dfs_islist:
             step_endtime = max([max(dfi) for dfi in [df.index for df in dfs]])
         else:
             step_endtime = max(dfs.index)
-    else:
-        pdb.set_trace()
-        # If this is not the last step, use the start time for the next step minus 1 sec
-        step_endtime = dt.datetime.combine(history[step + 1]['date'], history[step + 1]['time1'])
-        step_endtime -= dt.timedelta(seconds=1)
     
     # select data for plotting: only data within the present load/temperature step start and end times
     if dfs_islist:
@@ -914,7 +896,7 @@ if __name__ == '__main__':
         
         if hist['step'] in steps_to_overview or hist['step'] in steps_to_plot:
             # select the data
-            [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], history, step=step_id)
+            [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist)
             lvdt_step = add_minutes(lvdt_step)
             pt100_step = add_minutes(pt100_step)
             hobo_step = add_minutes(hobo_step)
@@ -922,8 +904,8 @@ if __name__ == '__main__':
             continue
             
         if hist['step'] in steps_to_overview:
-            #f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
-            f = plot_step_overview_hobo(lvdt_dat, pt100T, hoboT, hist)
+            f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
+            #f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
             ovname = '{0}_raw_{1:02.0f}_{2}kPa_{3}C.png'.format(info['sample']['name'].replace(' ','-'),
                                                   hist['step'], hist['load'], hist['temp'])
             f.savefig(os.path.join(data_path, ovname), dpi=200)
