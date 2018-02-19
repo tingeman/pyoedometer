@@ -345,7 +345,7 @@ def read_history(fname):
     return dat
 
 
-def select_data(dfs, hist, buffer=0):
+def select_data(dfs, hist, buffer=0, max_len=0):
     """Returns the subset of the DataFrame(s) data that fall within
     the start and end date and time of the specified load step.
     
@@ -365,6 +365,9 @@ def select_data(dfs, hist, buffer=0):
         Dates must be datetime.date objects and times datetime.time objects.
     buffer: int
         Time in seconds to include before start of load step
+    max_len: int
+        Maximum length of selected time series in seconds. If 0 (default)
+        no maximum length is imposed.
     
     Returns:
     --------
@@ -392,6 +395,11 @@ def select_data(dfs, hist, buffer=0):
             step_endtime = max([max(dfi) for dfi in [df.index for df in dfs]])
         else:
             step_endtime = max(dfs.index)
+    
+    if max_len > 0:
+        series_length = (step_endtime-step_starttime).days*3600*24+(step_endtime-step_starttime).seconds
+        if series_length > max_len:
+            step_endtime = step_starttime + dt.timedelta(seconds=max_len)
     
     # select data for plotting: only data within the present load/temperature step start and end times
     if dfs_islist:
@@ -464,7 +472,17 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
 
 def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
 
-    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], history, step=step_id)
+    # select the data
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=90, max_len=180)
+    step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
+    lvdt_start = add_minutes(lvdt_step, t0=step_starttime)
+    pt100_start = add_minutes(pt100_step, t0=step_starttime)
+    hobo_start = add_minutes(hobo_step, t0=step_starttime)
+
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=0, max_len=0)
+    lvdt_step = add_minutes(lvdt_step)
+    pt100_step = add_minutes(pt100_step)
+    hobo_step = add_minutes(hobo_step)
     
     hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
     
@@ -474,28 +492,48 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                           figsize=(10, 12))
 
     # make sure the top 3 axes share the same x-axis
-    axs[0,0].get_shared_x_axes().join(axs[0,1], axs[0,2])
-    axs[1,0].get_shared_x_axes().join(axs[1,1], axs[1,2])
+    axs[0,0].get_shared_x_axes().join(axs[1,0], axs[2,0])
+    axs[0,1].get_shared_x_axes().join(axs[1,1], axs[2,1])
     
     # Plot the first lvdt
-    l1, = ax[1,0].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    l, = axs[0,0].plot(lvdt_start['minutes'], lvdt_start['strain'], '-k', zorder=10)
+    l1, = axs[0,1].plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
     
-    # # Create a second y-axis and plot the second lvdt
-    # ax1a = ax1.twinx()
-    # l2, = ax1a.plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='Strain', zorder=10)
-
+    axs[0,0].axvline(x=0, ls='--', color='k')
+    
     # invert the direction of both y-axes
-    ax1.invert_yaxis()
-
-    l3, = ax2.plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    axs[0,1].invert_yaxis()
+    axs[0,0].invert_yaxis()
+    
+    l3, = axs[1,1].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
     handles = [l1, l3]
     
     if len(hobo_step) > 0:
         #l5, = ax2.plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
         #l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
-        l7, = ax3.plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
+        l7, = axs[2,1].plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
         #handles.extend([l5, l6, l7])
         handles.extend([l7])
+    else:
+        axs[2,1].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
+        bbox_props = dict(boxstyle="square,pad=0.3", fc="none", ec="none")
+        t = axs[2,1].text(0.5, 0.5, "No data available", 
+                          ha="center", va="center", rotation=0,
+                          size=15, color='0.75', bbox=bbox_props,
+                          transform=axs[2,1].transAxes)
+        
+        formatter = axs[1,0].xaxis.get_major_formatter()
+        locator = axs[1,0].xaxis.get_major_locator()
+    
+        axs[1,0].xaxis.set_major_formatter(formatter)
+        axs[1,0].xaxis.set_major_locator(locator)
+        
+        #axs[2,1].annotate('No data available', 
+        #                  xy=(0.5, 0.5), xytext=(0.5, 0.5), 
+        #                  xycoords=("axes fraction", "axes fraction"), 
+        #                  textcoords=("axes fraction", "axes fraction"),
+        #                  arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth':1}, 
+        #                  zorder=100, va='center', ha='center')
         
     # Plot figure title
     plt.suptitle('Step: {0},  Date: {1},  Load: {2}, kPa  Temp: {3} C'.format(step_info['step'],
@@ -504,24 +542,48 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                                                                               step_info['temp']),
                  fontsize=14)
 
-    ax1.set_ylabel('Strain [mm]')
+    axs[0,1].set_ylabel('Strain [mm]')
     #ax1a.set_ylabel('Strain [%]')
-    ax2.set_ylabel('Temperature [C]')
-    ax3.set_ylabel('Temperature [C]')
+    axs[1,1].set_ylabel('Temperature [C]')
+    axs[2,1].set_ylabel('Temperature [C]')
 
     # plot common legend for all subplots
     labels = [h.get_label() for h in handles]
 
-    ax4.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=12)
-    ax4.axis('off')
-
-    axes = [ax1, ax2, ax3]
+    axs[3,0].axis('off')
+    axs[3,1].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=12)
+    axs[3,1].axis('off')
+    axs[1,0].axis('off')
+    axs[2,0].axis('off')
+    
+    
+    axes = [axs[0,1], axs[1,1]]
+    if len(hobo_step) > 0:
+        axes.append(axs[2,1])
+        
     for ax in axes:
         ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
         ax.grid(True)
     # f.tight_layout()
     # ax1.legend(zorder=0)
     # ax2.legend(zorder=0)
+    
+    min_lims = [0.4, 0.4, 0.4]
+    
+    ylim = axs[0,1].get_ylim()
+    if np.abs(ylim[0]-ylim[1]) < min_lims[0]:
+        center = (ylim[1]+ylim[0])/2.
+        axs[0,1].set_ylim([center+min_lims[0]/2., center-min_lims[0]/2.])
+    
+    ylim = axs[1,1].get_ylim()
+    if np.abs(ylim[0]-ylim[1]) < min_lims[1]:
+        center = (ylim[1]+ylim[0])/2.
+        axs[1,1].set_ylim([center-min_lims[1]/2., center+min_lims[1]/2.])
+        
+    ylim = axs[2,1].get_ylim()
+    if np.abs(ylim[0]-ylim[1]) < min_lims[2]:
+        center = (ylim[1]+ylim[0])/2.
+        axs[2,1].set_ylim([center-min_lims[2]/2., center+min_lims[2]/2.])        
     
     return f    
     
@@ -645,11 +707,14 @@ def plot_time_curve(strain, step_info, temp=None, intersect=1, markers=False):
     plt.show(block=False)
     return ax1
     
-def add_minutes(ts):
+def add_minutes(ts, t0=None):
     """Adds timestamp in minutes with the first sample as zero minutes"""
-    if not 'minutes' in ts.columns:
-        if len(ts) > 0:
+#    if not 'minutes' in ts.columns:
+    if len(ts) > 0:
+        if t0 is None:
             ts['minutes'] = (ts.index-ts.index[0]).days*24*60 + (ts.index-ts.index[0]).seconds/60.
+        else:
+            ts['minutes'] = (ts.index-t0).days*24*60 + (ts.index-t0).seconds/60.
     
     return ts
     
@@ -890,7 +955,7 @@ if __name__ == '__main__':
     steps_to_interpret = [d['step'] for d in interpret]
     
     steps_to_plot = [] # [d['step'] for d in history]
-    steps_to_overview = [d['step'] for d in history]
+    steps_to_overview = [0,1,2,3,4]  # [d['step'] for d in history]
     
     for step_id, hist in enumerate(history):
         
@@ -904,8 +969,8 @@ if __name__ == '__main__':
             continue
             
         if hist['step'] in steps_to_overview:
-            f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
-            #f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
+            #f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
+            f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
             ovname = '{0}_raw_{1:02.0f}_{2}kPa_{3}C.png'.format(info['sample']['name'].replace(' ','-'),
                                                   hist['step'], hist['load'], hist['temp'])
             f.savefig(os.path.join(data_path, ovname), dpi=200)
