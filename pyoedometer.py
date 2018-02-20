@@ -271,6 +271,9 @@ def read_hobo_data(hobo_conf):
         rows = []  # holds the combined rows of all files
         index = []  # holds the combined list of datetimes (one for each row)
         # utc_list = []  # holds the list of utc time off sets
+
+        # global offset in seconds to be added to the time stamp
+        global_offset = dt.timedelta(days=0, seconds=hobo_conf.get('deltatime', 0))
         
         for filename in os.listdir(directory):  # Iterate over all files in the directory
             if filename.endswith(".csv"):  # If file is a csv file we should process it
@@ -299,7 +302,7 @@ def read_hobo_data(hobo_conf):
                 id = len(index)
                 # add rows and datetimes to the respective lists
                 rows.extend(df.values.tolist())
-                index.extend((df.index - utc_offset_dt).tolist())
+                index.extend((df.index - utc_offset_dt + global_offset).tolist())
                 print(index[id])
                 # utc_list.extend([utc_offset_dt for i in xrange(len(df))])
 
@@ -315,9 +318,9 @@ def read_hobo_data(hobo_conf):
         hoboT.sort_index(inplace=True)
 
         # apply the hobo calibrations
-        hoboT['T(1)'] = hobo_conf[0]['calibration']['coeff'][0]*hoboT['T(1)']+hobo_conf[0]['calibration']['coeff'][1]
-        hoboT['T(2)'] = hobo_conf[1]['calibration']['coeff'][0]*hoboT['T(2)']+hobo_conf[1]['calibration']['coeff'][1]
-        hoboT['T(3)'] = hobo_conf[2]['calibration']['coeff'][0]*hoboT['T(3)']+hobo_conf[2]['calibration']['coeff'][1]
+        hoboT['T(1)'] = hobo_conf['config'][0]['calibration']['coeff'][0]*hoboT['T(1)']+hobo_conf['config'][0]['calibration']['coeff'][1]
+        hoboT['T(2)'] = hobo_conf['config'][1]['calibration']['coeff'][0]*hoboT['T(2)']+hobo_conf['config'][1]['calibration']['coeff'][1]
+        hoboT['T(3)'] = hobo_conf['config'][2]['calibration']['coeff'][0]*hoboT['T(3)']+hobo_conf['config'][2]['calibration']['coeff'][1]
 
         hoboT.to_hdf(hdf_fname, 'data')
     
@@ -345,7 +348,7 @@ def read_history(fname):
     return dat
 
 
-def select_data(dfs, hist, buffer=0, max_len=0):
+def select_data(dfs, hist, buffer=0, end_buffer=0, max_len=0):
     """Returns the subset of the DataFrame(s) data that fall within
     the start and end date and time of the specified load step.
     
@@ -365,6 +368,8 @@ def select_data(dfs, hist, buffer=0, max_len=0):
         Dates must be datetime.date objects and times datetime.time objects.
     buffer: int
         Time in seconds to include before start of load step
+    end_buffer: int
+        Time in seconds to include after end of load step
     max_len: int
         Maximum length of selected time series in seconds. If 0 (default)
         no maximum length is imposed.
@@ -389,7 +394,7 @@ def select_data(dfs, hist, buffer=0, max_len=0):
     
     # Get the end date and time
     if ('date2' in hist and hist['date2'] is not None) and ('time2' in hist and hist['time2'] is not None):
-        step_endtime = dt.datetime.combine(hist['date2'], hist['time2'])
+        step_endtime = dt.datetime.combine(hist['date2'], hist['time2']) + dt.timedelta(seconds=end_buffer)
     else:
         if dfs_islist:
             step_endtime = max([max(dfi) for dfi in [df.index for df in dfs]])
@@ -475,11 +480,12 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     # select the data
     [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=60, max_len=120)
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
+    step_endtime = dt.datetime.combine(step_info['date2'], step_info['time2'])
     lvdt_start = add_minutes(lvdt_step, t0=step_starttime)
     pt100_start = add_minutes(pt100_step, t0=step_starttime)
     hobo_start = add_minutes(hobo_step, t0=step_starttime)
 
-    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=0, max_len=0)
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=0, end_buffer=0, max_len=0)
     lvdt_step = add_minutes(lvdt_step)
     pt100_step = add_minutes(pt100_step)
     hobo_step = add_minutes(hobo_step)
@@ -512,7 +518,10 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-
+    axs[1].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+    axs[2].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+    axs[3].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+    
     y0 = lvdt_step[lvdt_step['minutes']==0]['eps'].values[0]
     axs[0].axhline(y=y0, ls='--', color='0.65', zorder=-100)
     axs[1].axhline(y=y0, ls='--', color='0.65', zorder=-100)
