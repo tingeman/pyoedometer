@@ -58,37 +58,37 @@ progversion = "0.1"
 
 # TEST INFORMATION
 
-history = []
-hist_fname = 'hist.yml'
-data_path = './sample_1_2'
-
-# Sample info
-sample_1_h0 = 20.50  # mm
-sample_2_h0 = 21.12  # mm
-
-# LVDT calibrations
-lvdt_1_a = np.mean([-992.649, -1005.437])
-lvdt_1_b = np.mean([4339.163, 4404.368])
-lvdt_1_h0 = 9.0234  # mm
-
-lvdt_2_a = np.mean([-985.457, -1004.581])
-lvdt_2_b = np.mean([4125.023, 4227.782])
-lvdt_2_h0 = 9.0234  # mm
-
-lvdt_3_a = np.mean([-985.514, -1000.657])
-lvdt_3_b = np.mean([4816.420, 4888.629])
-lvdt_3_h0 = 0  # mm
-
-# HOBO CALIBRATIONS:   T = T_meas + delta_T
-cal_hobo_1 = -0.02
-cal_hobo_2 = -0.02
-cal_hobo_3 = 0.00
-
-
-
-# PT100 calibrations:  multiplicative factor
-cal_pt100_1 = 1.000320692
-cal_pt100_2 = 1.001201753
+#history = []
+#hist_fname = 'hist.yml'
+#data_path = './sample_1_2'
+#
+## Sample info
+#sample_1_h0 = 20.50  # mm
+#sample_2_h0 = 21.12  # mm
+#
+## LVDT calibrations
+#lvdt_1_a = np.mean([-992.649, -1005.437])
+#lvdt_1_b = np.mean([4339.163, 4404.368])
+#lvdt_1_h0 = 9.0234  # mm
+#
+#lvdt_2_a = np.mean([-985.457, -1004.581])
+#lvdt_2_b = np.mean([4125.023, 4227.782])
+#lvdt_2_h0 = 9.0234  # mm
+#
+#lvdt_3_a = np.mean([-985.514, -1000.657])
+#lvdt_3_b = np.mean([4816.420, 4888.629])
+#lvdt_3_h0 = 0  # mm
+#
+## HOBO CALIBRATIONS:   T = T_meas + delta_T
+#cal_hobo_1 = -0.02
+#cal_hobo_2 = -0.02
+#cal_hobo_3 = 0.00
+#
+#
+#
+## PT100 calibrations:  multiplicative factor
+#cal_pt100_1 = 1.000320692
+#cal_pt100_2 = 1.001201753
 
 
 
@@ -372,7 +372,8 @@ def select_data(dfs, hist, buffer=0, end_buffer=0, max_len=0):
         Time in seconds to include after end of load step
     max_len: int
         Maximum length of selected time series in seconds. If 0 (default)
-        no maximum length is imposed.
+        no maximum length is imposed. If negative, the maximum length will
+        be counted from the end of the time series.
     
     Returns:
     --------
@@ -405,6 +406,10 @@ def select_data(dfs, hist, buffer=0, end_buffer=0, max_len=0):
         series_length = (step_endtime-step_starttime).days*3600*24+(step_endtime-step_starttime).seconds
         if series_length > max_len:
             step_endtime = step_starttime + dt.timedelta(seconds=max_len)
+    if max_len < 0:
+        series_length = (step_endtime-step_starttime).days*3600*24+(step_endtime-step_starttime).seconds
+        if series_length > np.abs(max_len):
+            step_starttime = step_endtime + dt.timedelta(days=0, seconds=max_len)
     
     # select data for plotting: only data within the present load/temperature step start and end times
     if dfs_islist:
@@ -475,20 +480,84 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
     
     return f
 
+
+def ignore_spikes(ax, buffer, percentiles=[1,5], threshold=1, min_lim=None):
+    ylim = ax.get_ylim()
+    if ylim[0]>ylim[1]:
+        inverted = True
+    else:
+        inverted = False
+        
+    yln = min(ylim)
+    ylx = max(ylim)
+    
+    dat = []
+    for l in ax.lines:
+        dat.extend(list(l.get_data()[1]))
+    
+    if np.abs(np.nanpercentile(dat,100-percentiles[0])-np.nanpercentile(dat,100-percentiles[1])) < threshold:
+        ylx = np.nanpercentile(dat,100-percentiles[0])+buffer
+        
+    if np.abs(np.nanpercentile(dat,percentiles[1])-np.nanpercentile(dat,percentiles[0])) < threshold:
+        yln = np.nanpercentile(dat,percentiles[0])-buffer
+    
+    if min_lim is not None:
+        if ylx < min_lim[1]:
+            ylx = min_lim[1]
+        if yln > min_lim[0]:
+            yln = min_lim[0]
+    
+    if inverted:
+        ax.set_ylim([ylx, yln])
+    else:
+        ax.set_ylim([yln, ylx])
+
+def min_ylim(ax, min_lim):
+    ylim = ax.get_ylim()
+    if ylim[0]>ylim[1]:
+        inverted = True
+    else:
+        inverted = False
+
+    yln = min(ylim)
+    ylx = max(ylim)
+
+    if ylx-yln < min_lim:
+        center = (yln+ylx)/2.
+        yln = center-min_lim/2.
+        ylx = center+min_lim/2.
+    
+    if inverted:
+        ax.set_ylim([ylx, yln])
+    else:
+        ax.set_ylim([yln, ylx])    
+    
+    
 def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
 
-    # select the data
-    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=60, max_len=120)
+    plot_end_of_step = True
+    
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
     step_endtime = dt.datetime.combine(step_info['date2'], step_info['time2'])
+    step_duration_h = (step_endtime-step_starttime).days*24. + (step_endtime-step_starttime).seconds/3600.    
+    
+    # select the data
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=60, max_len=120)
     lvdt_start = add_minutes(lvdt_step, t0=step_starttime)
     pt100_start = add_minutes(pt100_step, t0=step_starttime)
     hobo_start = add_minutes(hobo_step, t0=step_starttime)
 
+    [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, end_buffer=3600, max_len=-7200)
+    lvdt_end = add_minutes(lvdt_step, t0=step_starttime)
+    pt100_end = add_minutes(pt100_step, t0=step_starttime)
+    hobo_end = add_minutes(hobo_step, t0=step_starttime)    
+    
     [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist, buffer=0, end_buffer=0, max_len=0)
     lvdt_step = add_minutes(lvdt_step)
     pt100_step = add_minutes(pt100_step)
     hobo_step = add_minutes(hobo_step)
+
+    end_minutes = lvdt_step['minutes'][-1]
     
     hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
     
@@ -497,13 +566,14 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     #                                   'width_ratios':  [1, 3]},
     #                      figsize=(10, 12))
 
-    f = plt.figure(figsize=(10,9))
+    f = plt.figure(figsize=(15,9))
     gs = matplotlib.gridspec.GridSpec(12, 4)
     plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))
     plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))
     plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))
     plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))
     plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))
+    plt.subplot(gs.new_subplotspec((5, 0), colspan=1, rowspan=4))
     
     axs = f.axes
     
@@ -514,10 +584,16 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
     l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='LVDT strain', zorder=10)
     
+    # plot end of time series
+    l, = axs[5].plot_date(lvdt_end.index, lvdt_end['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+    
     axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
+    axs[5].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+    
     axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
     axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+
     axs[1].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
     axs[2].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
     axs[3].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
@@ -549,15 +625,17 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
         
         
     # Plot figure title
-    plt.suptitle('Step: {0},  Date: {1},  Load: {2}, kPa  Temp: {3} C'.format(step_info['step'],
+    plt.suptitle('Step: {0},  Date: {1},  Load: {2} kPa,  Temp: {3} C, Duration: {4:.1f} h'.format(step_info['step'],
                                                                               step_info['date'],
                                                                               step_info['load'],
-                                                                              step_info['temp']),
+                                                                              step_info['temp'],
+                                                                              step_duration_h),
                  fontsize=14)
 
     axs[0].set_xlabel('Time [min]')
     axs[0].set_ylabel('Strain [%]')
     axs[1].set_ylabel('Strain [%]')
+    axs[5].set_ylabel('Strain [%]')
     #ax1a.set_ylabel('Strain [%]')
     axs[2].set_ylabel('Temperature [C]')
     axs[3].set_ylabel('Temperature [C]')
@@ -575,62 +653,21 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     for ax in axes:
         ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
         ax.grid(True)
-    # f.tight_layout()
-    # ax1.legend(zorder=0)
-    # ax2.legend(zorder=0)
-    
-    def ignore_spikes(ax, buffer, percentiles=[1,5], threshold=1, min_lim=None):
-        ylim = ax.get_ylim()
-        if ylim[0]>ylim[1]:
-            inverted = True
-        else:
-            inverted = False
-            
-        yln = min(ylim)
-        ylx = max(ylim)
-        
-        dat = []
-        for l in ax.lines:
-            dat.extend(list(l.get_data()[1]))
-        
-        if np.abs(np.nanpercentile(dat,100-percentiles[0])-np.nanpercentile(dat,100-percentiles[1])) < threshold:
-            ylx = np.nanpercentile(dat,100-percentiles[0])+buffer
-            
-        if np.abs(np.nanpercentile(dat,percentiles[1])-np.nanpercentile(dat,percentiles[0])) < threshold:
-            yln = np.nanpercentile(dat,percentiles[0])-buffer
-        
-        if min_lim is not None:
-            if ylx < min_lim[1]:
-                ylx = min_lim[1]
-            if yln > min_lim[0]:
-                yln = min_lim[0]
-        
-        if inverted:
-            ax.set_ylim([ylx, yln])
-        else:
-            ax.set_ylim([yln, ylx])
 
-    def min_ylim(ax, min_lim):
-        ylim = ax.get_ylim()
-        if ylim[0]>ylim[1]:
-            inverted = True
-        else:
-            inverted = False
+    axs[5].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    plt.setp(axs[5].xaxis.get_majorticklabels(), rotation=45)        
 
-        yln = min(ylim)
-        ylx = max(ylim)
-    
-        if ylx-yln < min_lim:
-            center = (yln+ylx)/2.
-            yln = center-min_lim/2.
-            ylx = center+min_lim/2.
-        
-        if inverted:
-            ax.set_ylim([ylx, yln])
-        else:
-            ax.set_ylim([yln, ylx])
+    bbox_props = dict(boxstyle="square,pad=0", fc="none", ec="none")
+    t = axs[0].text(0.03, 0.97, 'Beginning of step'.format(step_duration_h), 
+                          ha="left", va="top", rotation=0,
+                          size=9, color='k', bbox=bbox_props,
+                          transform=axs[0].transAxes)
+    t = axs[5].text(0.03, 0.97, 'End of step', 
+                          ha="left", va="top", rotation=0,
+                          size=9, color='k', bbox=bbox_props,
+                          transform=axs[5].transAxes)
             
-    min_lims = [0.1, 1, 0.4, 2]
+    min_lims = [0.1, 1, 0.4, 2, 0.002]
     
     min_ylim(axs[0], min_lims[0])
     
@@ -648,6 +685,8 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     min_ylim(axs[2], min_lims[2])            
     
     min_ylim(axs[3], min_lims[3])            
+    
+    min_ylim(axs[5], min_lims[4])  
     
     f.tight_layout()
     
@@ -700,32 +739,51 @@ def plot_step_overview(lvdt_step, pt100_step, hobo_step, step_info):
     
     
     
-def plot_time_curve(strain, step_info, temp=None, intersect=1, markers=False):
+def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, markers=False):
+
+    step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
+    step_endtime = dt.datetime.combine(step_info['date2'], step_info['time2'])
+    step_duration_h = (step_endtime-step_starttime).days*24. + (step_endtime-step_starttime).seconds/3600.
     
-    strain = add_minutes(strain)
+    strain = add_minutes(strain, t0=step_starttime)
+    
+    if hobo is not None:
+        if len(hobo) == 0:
+            hobo = None
     
     if temp is not None:
-        f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=False, sharey=False,
-                                               gridspec_kw={'height_ratios': [3, 1]},
-                                               figsize=(10, 5))
-        temp = add_minutes(temp)
+        if hobo is not None:
+            f, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, sharex=False, sharey=False,
+                                              gridspec_kw={'height_ratios': [7, 3, 3, 1]},
+                                              figsize=(10, 7))
+            hobo = add_minutes(hobo, t0=step_starttime)
+        else:
+            f, (ax1, ax2, ax4) = plt.subplots(nrows=3, ncols=1, sharex=False, sharey=False,
+                                         gridspec_kw={'height_ratios': [7, 3, 1]},
+                                         figsize=(10, 7./14.*11))
+            
+        temp = add_minutes(temp, t0=step_starttime)
     else:
-        f = plt.figure(figsize=(15,5))
-        ax1 = plt.axis()
+        f, (ax1, ax4) = plt.subplots(nrows=2, ncols=1, sharex=False, sharey=False,
+                                         gridspec_kw={'height_ratios': [7, 1]},
+                                         figsize=(10, 7./14.*8))
         
     if markers:
         ls = '.-k'
     else:
         ls = '-k'
     
-    ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls)
+    handles = []
+    
+    l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls, label='LVDT strain')
+    handles.append(l)   
        
     if intersect is None:
         ax1.set_xscale('log')
     else:
         ax1.set_xscale('sqrtlog', intersectx=intersect)
 
-        #ax.set_ylim([-2, np.ceil(np.sqrt(intersect))+1])
+    #ax.set_ylim([-2, np.ceil(np.sqrt(intersect))+1])
     #plt.gca().set_xlim([0, 2300])
     ax1.set_ylabel('Strain [%]')
     ax1.grid(True)
@@ -736,42 +794,91 @@ def plot_time_curve(strain, step_info, temp=None, intersect=1, markers=False):
     base = np.power(10, np.floor(np.log10(strain['minutes'][-1])))
     new_xlim[1] = np.ceil(strain['minutes'][-1]/base)*base
     ax1.set_xlim(new_xlim)
-    
     ax1.invert_yaxis()
-    sqrtlogscale.annotate_xaxis(ax=ax1, intersect=intersect)
     
+    min_lim = np.sort([lvdt_step['eps'][0], lvdt_step['eps'][-1]])
+    min_lim[0] -= 0.1
+    min_lim[1] += 0.1
+    ignore_spikes(ax1, 0.2, min_lim=min_lim)
+    min_ylim(ax1, 0.1)
+        
     if temp is not None:       
         if intersect is None:
             ax2.set_xscale('log')
-            temp['minutes'].iloc[0] = ax1.get_xlim()[0]
+            if temp['minutes'].iloc[0] <= 0:
+                temp['minutes'].iloc[0] = ax1.get_xlim()[0]
         else:
+            ax2.set_xlim(ax1.get_xlim())
             ax2.set_xscale('sqrtlog', intersectx=intersect)
 
-        ax2.plot(temp['minutes'], temp['T'], '-k')
-
+        l, = ax2.plot(temp['minutes'], temp['T'], '-b', label='Sample temperature')
+        handles.append(l)
+        
         ax2.set_ylabel('Temperature [C]')
         ax2.grid(True)
         ax2.grid(b=True, which='minor', ls='--')
-    
-        yl2 = ax2.get_ylim()
-        if np.diff(yl2) < 0.4:
-            midpoint = np.round(np.mean(yl2))
-            ax2.set_ylim([midpoint-0.2, midpoint+0.2])
+        
+        min_ylim(ax2, 0.4)
         
         sqrtlogscale.annotate_xaxis(ax=ax2, intersect=intersect, arrows=None)
         
         ax2.set_xlim(ax1.get_xlim())
         
         # make sure the axes share the same x-axis
-        ax1.get_shared_x_axes().join(ax2)
+        ax1.get_shared_x_axes().join(ax1, ax2)
+    
+    if hobo is not None:
+        if intersect is None:
+            ax3.set_xscale('log')
+            if hobo['minutes'].iloc[0] <= 0:
+                hobo['minutes'].iloc[0] = ax1.get_xlim()[0]
+        else:
+            ax3.set_xlim(ax1.get_xlim())
+            ax3.set_xscale('sqrtlog', intersectx=intersect)
+
+        l, = ax3.plot(hobo['minutes'], hobo['T(3)'], '-g', label='Computer room')
+        handles.append(l)
+        
+        ax3.set_ylabel('Temperature [C]')
+        ax3.grid(True)
+        ax3.grid(b=True, which='minor', ls='--')
+        
+        min_ylim(ax3, 2)
+        
+        sqrtlogscale.annotate_xaxis(ax=ax3, intersect=intersect, arrows=None)
+        
+        ax3.set_xlim(ax1.get_xlim())
+        
+        # make sure the axes share the same x-axis
+        ax1.get_shared_x_axes().join(ax1, ax2, ax3)
+    
+    if hobo is not None:
+        ax3.set_xlabel('Time (min)')
+    elif temp is not None:
         ax2.set_xlabel('Time (min)')
     else:
         ax1.set_xlabel('Time (min)')
     
+    # Plot figure title
+    plt.suptitle('Name: {0}, Step: {1},  Date: {2},  Load: {3} kPa,  Temp: {4} C, Duration: {5:.1f} h'.format(
+                                                                              step_info['name'],
+                                                                              step_info['step'],
+                                                                              step_info['date'],
+                                                                              step_info['load'],
+                                                                              step_info['temp'],
+                                                                              step_duration_h),
+                 fontsize=12)
     
+    # plot common legend for all subplots
+    labels = [h.get_label() for h in handles]
+    ax4.axis('off')
+    ax4.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=10)
     
-    plt.show(block=False)
-    return ax1
+    f.tight_layout(rect=[0,0,0.95,0.9])
+    
+    sqrtlogscale.annotate_xaxis(ax=ax1, intersect=intersect, arrow_margin=1.05)
+    
+    return f, ax1
     
 def add_minutes(ts, t0=None):
     """Adds timestamp in minutes with the first sample as zero minutes"""
@@ -977,7 +1084,7 @@ def annotate_yaxis(ax, params, linecolor='black', linewidth=1, fontsize=10):
                 arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth':linewidth}, zorder=-100, va='center')
 
 
-def plot_legend(ax, info, step):
+def plot_legend(ax, info, step, loc='upper right'):
     
     txt = 'Sample: {0}\n'.format(info['sample']['name'])
     txt += 'Depth: {0}\n'.format(info['sample']['depth'])
@@ -986,9 +1093,25 @@ def plot_legend(ax, info, step):
     
     at = AnchoredText(txt,
                   prop=dict(size=10), frameon=True,
-                  loc='upper right')
+                  loc=loc)
     at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
     ax.add_artist(at)
+
+    
+def get_epsf(strain, conf):
+    deltat = dt.timedelta(seconds=conf['dt']*60)
+    start_average = strain.index[-1]-deltat
+    
+    return strain[strain.index >= start_average]['eps'].mean()
+    
+    
+def get_step_temp(temp, conf):
+    if conf['t1'] == -1:
+        t1 = temp['minutes'].max()
+    else:
+        t1 = conf['t1']
+        
+    return temp[(temp['minutes'] >= conf['t0']) & (temp['minutes'] <= t1)]['T'].mean()
 
     
 def get_key_index(lst, key, val):
@@ -998,9 +1121,43 @@ def get_key_index(lst, key, val):
     except: 
         return None
 
+def plot_consolidation(df):
+    f = plt.figure()
+    
+    if 'linetype' in df.columns:
+        for id, row in df.iterrows():
+            if id < len(df)-1:
+                l1, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['epsf'], color='k', ls=row['linetype'], lw=1)
+                l2, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['eps100'], color='b', ls=row['linetype'], lw=1)
+                
+            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['epsf'], color='k', ls='none', lw=1, marker='.')
+            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['eps100'], color='b', ls='none', lw=1, marker='.')
+    else:
+        l1, = plt.semilogx(df['load'], df['epsf'], '.-k', label=r'$\varepsilon_f$', lw=1)
+        l2, = plt.semilogx(df['load'], df['eps100'], '.-b', label=r'$\varepsilon_{100}$', lw=1)
+    
+    ax = plt.gca()
+    ax.invert_yaxis()
+    ax.grid(True)
+    ax.set_xlabel(r'Stress, $\sigma$ [kPa]')
+    ax.set_ylabel(r'Strain, $\varepsilon$ [%]')
+    
+    for id, row in df.iterrows():
+        if row['annotate']:
+            ax.annotate(row['txt'], xy=(row['load'], row['epsf']),
+                        xytext = (row['load']+row['offset_x'], row['epsf']+row['offset_y']),
+                        ha='left', va='center', size=7,
+                        #bbox=dict(boxstyle='square', fc='w', ec='w'),
+                        arrowprops={'arrowstyle': '-', 'color':'k', 'linewidth':0.5, 'shrinkA':0.05, 'shrinkB':0.05})
+    
+    ax.legend(handles=[l1,l2], labels=[r'$\varepsilon_f$', r'$\varepsilon_{100}$'], loc='lower left')
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position('top')
+
         
 if __name__ == '__main__':
-    info = read_history(hist_fname)
+    info = read_history('config_sample_1.yml')
+    config = info['config']
     history = info['history']
     interpret = info['interpret']
     
@@ -1020,12 +1177,20 @@ if __name__ == '__main__':
     
     steps_to_interpret = [d['step'] for d in interpret]
     
-    steps_to_plot = [] # [d['step'] for d in history]
-    steps_to_overview = [d['step'] for d in history]
+    steps_to_plot =  [] 
+#   steps_to_plot = [23,24,25,26,27] 
+#    steps_to_plot = [d['step'] for d in history]
+
+    steps_to_overview = [] # [d['step'] for d in history]
+#    steps_to_overview = [d['step'] for d in history]    
+    
+    params_list = []
     
     for step_id, hist in enumerate(history):
         
-        if hist['step'] in steps_to_overview or hist['step'] in steps_to_plot:
+        hist['name'] = info['sample']['name']
+        
+        if hist['step'] in steps_to_overview or hist['step'] in steps_to_plot or hist['step'] in steps_to_interpret:
             # select the data
             [lvdt_step, pt100_step, hobo_step] = select_data([lvdt_dat, pt100T, hoboT], hist)
             lvdt_step = add_minutes(lvdt_step)
@@ -1034,44 +1199,89 @@ if __name__ == '__main__':
         else:
             continue
         
-        print('Plotting {0:.0f} kPa, {1:.0f} C'.format(hist['load'], hist['temp']))
+        print('Processing {0:.0f} kPa, {1:.0f} C'.format(hist['load'], hist['temp']))
         
+        params = {'step': hist['step'], 'load': hist['load'], 'temp': hist['temp']}
+        
+        if hist['step'] in steps_to_interpret:
+            # do interpretation
+            h0 = 20   # mm     What thickness should be used here?
+        
+            int_id = get_key_index(interpret, 'step', hist['step'])
+            if int_id is not None:
+                if 'epsf' in interpret[int_id]:
+                    params['epsf'] = get_epsf(lvdt_step, interpret[int_id]['epsf'])
+                
+                if 'temp' in interpret[int_id]:
+                    params['temp'] = get_step_temp(pt100_step, interpret[int_id]['temp'])
+                    pass
+        
+                if 'timec' in interpret[int_id]: 
+                    timec_info = interpret[int_id]['timec']
+                
+                    if timec_info['type'] == 'iso_sqrt':
+                        tcparams = interpret_iso17892_5(lvdt_step['minutes'].values, lvdt_step['eps'].values, h0, 
+                                                        timec_info['t1'], timec_info['t2'], 
+                                                        timec_info['t3'], timec_info['t4'])
+                        params.update(tcparams)
+                    else:
+                        raise ValueError('Unknown interpretation method!')
+
+                        
         if hist['step'] in steps_to_overview:
             #f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
             f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
             ovname = '{0}_raw_{1:02.0f}_{2}kPa_{3}C.png'.format(info['sample']['name'].replace(' ','-'),
                                                   hist['step'], hist['load'], hist['temp'])
-            f.savefig(os.path.join(data_path, ovname), dpi=200)
+            f.savefig(os.path.join(config['savefigpath'], ovname), dpi=200)
+            plt.close(f)
         
         if hist['step'] in steps_to_plot:
-            params = {}
-            if hist['step'] in steps_to_interpret:
-                
-                int_id = get_key_index(interpret, 'step', hist['step'])
-                if int_id is not None:
-                    # do interpretation
-                    h0 = 20   # mm     What thickness should be used here?
-                    if interpret[int_id]['type'] == 'iso_sqrt':
-                        params = interpret_iso17892_5(lvdt_step['minutes'].values, lvdt_step['eps'].values, h0, 
-                                                      interpret[int_id]['t1'], interpret[int_id]['t2'], 
-                                                      interpret[int_id]['t3'], interpret[int_id]['t4'])
-                    else:
-                        raise ValueError('Unknown interpretation method!')
-                
-            if params:
-                ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, intersect=params['t100'], markers=False)
+            if 'sqrt_a' in params:
+                f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, intersect=params['t100'], markers=False)
                 plot_fit_line(params['sqrt_a'], params['sqrt_b'], ax, type='sqrt', num=100, intersect=params['t100'])
                 plot_fit_line(params['sqrt_a']/1.15, params['sqrt_b'], ax, type='sqrt', num=100, ls='--r', intersect=params['t100'])
                 plot_fit_line(params['log_a'], params['log_b'], ax, type='log10', num=100, ls='--r', intersect=params['t100'])
                 annotate_yaxis(ax, params)
             else:
-                ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, intersect=None, markers=False)
+                f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, hobo=hobo_step, intersect=None, markers=False)
                 
-            plot_legend(ax, info, step_id)
+            #plot_legend(ax, info, step_id, loc='lower left')
             
             plt.draw()
             
             tcname = '{0}_timecurve_{1:02.0f}_{2}kPa_{3}C.png'.format(info['sample']['name'].replace(' ','-'),
                                                   hist['step'], hist['load'], hist['temp'])
-            f.savefig(os.path.join(data_path, tcname), dpi=200)
+            f.savefig(os.path.join(config['savefigpath'], tcname), dpi=200)
+            plt.close(f)
+        
+        params_list.append(params)
     
+    params = pd.DataFrame.from_dict(params_list)
+    params = params.set_index('step')
+    params['annotate'] = 1
+    
+    txt = []
+    for id, row in params.iterrows():
+        txt.append('T={0:.1f}C'.format(row['temp']))
+    
+    params['txt'] = txt
+    params['offset_x'] = 0
+    params['offset_y'] = 0
+    
+    columns = params.columns
+    order = ['load', 'temp', 'eps0', 'eps50', 'eps90', 'eps100', 'epsf', 'epss', 
+             'Cv', 'k0', 't50', 't90', 't100', 'sqrt_a', 'sqrt_b', 'log_a', 'log_b', 
+             't_start', 't_end']
+    
+    order.extend([col for col in columns if col not in order])
+    columns = [col for col in order if col in columns]
+    
+    writer = pd.ExcelWriter(os.path.join(config['datapath'],'interpretation.xlsx'))
+    params.to_excel(writer, columns=columns, sheet_name='results')
+    
+    columns = ['load', 'temp', 'eps100', 'epsf', 'epss', 'annotate', 'txt', 'offset_x', 'offset_y']
+    params.to_excel(writer, columns=columns, sheet_name='plotting')
+    writer.save()
+    
+    plot_consolidation(params)
