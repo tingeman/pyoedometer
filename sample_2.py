@@ -28,26 +28,29 @@ lvdt_dat = read_lvdt_data(info['lvdt'], info['sample'])
 pt100T = read_pt100_data(info['pt100'])
 hoboT = read_hobo_data(info['hobo'])
 
+steps_to_interpret = []
+steps_to_plot =  [] 
+steps_to_overview = []
+steps_to_save = []
+
 # Specify which steps to process or plot
 #steps_to_interpret = []
+#steps_to_interpret = [24, 25, 26, 27] 
 steps_to_interpret = [d['step'] for d in interpret]
 
-#steps_to_plot =  [] 
-#steps_to_plot = [23,24,25,26,27] 
+#steps_to_plot =  [14,14.1,15] 
+#steps_to_plot = [24, 25, 26, 27]  
 steps_to_plot = [d['step'] for d in history]
 
-#steps_to_overview = []
+#steps_to_overview = [2]
+#steps_to_overview = [14,14.1,15]
 steps_to_overview = [d['step'] for d in history]    
 
 #steps_to_save = []
 steps_to_save = [d['step'] for d in history]
 
-#steps_to_interpret = []
-#steps_to_plot =  [] 
-#steps_to_overview = []
-#steps_to_save = []
-
 close_figs_after_save = True
+
 
 # create all output dirs specified in the config section of the configuration file.
 pyoedio.create_dirs([v for k,v in config.items() if 'path' in k])
@@ -83,7 +86,9 @@ for step_id, hist in enumerate(history):
         continue
     
     print('Processing {0:.0f} kPa, {1:.0f} C'.format(hist['load'], hist['temp']))
-    params = {'step': hist['step'], 'load': hist['load'], 'temp': hist['temp']}
+    
+    params = {'step': hist['step'], 'load': hist['load'], 'temp': hist['temp'],
+              'h0': sample_info['h0']}
     
     if hist['step'] in steps_to_save:
         pyoedio.save_step(config, sample_info, hist, lvdt_step, pt100_step, hobo_step)
@@ -96,24 +101,22 @@ for step_id, hist in enumerate(history):
     
         int_id = get_key_index(interpret, 'step', hist['step'])
         if int_id is not None:
-            if 'epsf' in interpret[int_id]:
-                params['epsf'] = get_epsf(lvdt_step, interpret[int_id]['epsf'])
+            
+            params.update(basic_interpretation(lvdt_step, interpret[int_id], history, params))
             
             if 'temp' in interpret[int_id]:
                 params['temp'] = get_step_temp(pt100_step, interpret[int_id]['temp'])
-                pass
     
             if 'timec' in interpret[int_id]: 
                 timec_info = interpret[int_id]['timec']
             
                 if timec_info['type'] == 'iso_sqrt':
-                    tcparams = interpret_iso17892_5(lvdt_step['minutes'].values, lvdt_step['eps'].values, h0, 
-                                                    timec_info['t1'], timec_info['t2'], 
-                                                    timec_info['t3'], timec_info['t4'])
-                    params.update(tcparams)
+                    params = interpret_iso17892_5(lvdt_step['minutes'].values, lvdt_step['eps'].values,
+                                                    interpret[int_id], history, params)
                 else:
                     raise ValueError('Unknown interpretation method!')
-
+                
+                params = interpret_k0(params)
 
     if hist['step'] in steps_to_overview:
         f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
@@ -126,14 +129,27 @@ for step_id, hist in enumerate(history):
 
             
     if hist['step'] in steps_to_plot:
-        if 'sqrt_a' in params:
-            f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, intersect=params['t100'], markers=False)
+        intersect = None
+        if interpret is not None:
+            int_id = get_key_index(interpret, 'step', hist['step'])
+            if (int_id is not None):
+                if ('timec' in interpret[int_id]):
+                    intersect = interpret[int_id]['timec']['intersect']
+            
+        if 't100' in params :
+            f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, intersect=params['t100'], markers=30)
+        else:
+            f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, hobo=hobo_step, intersect=intersect, markers=30)
+        
+        if ('sqrt_a' in params) & ('sqrt_b' in params):
             plot_fit_line(params['sqrt_a'], params['sqrt_b'], ax, type='sqrt', num=100, intersect=params['t100'])
             plot_fit_line(params['sqrt_a']/1.15, params['sqrt_b'], ax, type='sqrt', num=100, ls='--r', intersect=params['t100'])
-            plot_fit_line(params['log_a'], params['log_b'], ax, type='log10', num=100, ls='--r', intersect=params['t100'])
             annotate_yaxis(ax, params)
-        else:
-            f, ax = plot_time_curve(lvdt_step, hist, temp=pt100_step, hobo=hobo_step, intersect=None, markers=False)
+            
+            if ('log_a' in params) & ('log_b' in params):
+                plot_fit_line(params['log_a'], params['log_b'], ax, type='log10', num=100, ls='--r', intersect=params['t100'])
+        elif ('log_a' in params) & ('log_b' in params):
+            plot_fit_line(params['log_a'], params['log_b'], ax, type='log10', num=100, ls='--r', intersect=intersect)
             
         tcname = '{0:02.0f}_{1}_timec_{2:g}kPa_{3:g}C.png'.format(hist['step'], 
                                                                   info['sample']['name'].replace(' ','-'),
@@ -151,15 +167,6 @@ for step_id, hist in enumerate(history):
 if len(steps_to_interpret) > 0:
     params = pd.DataFrame.from_dict(params_list)
     params = params.set_index('step')
-    params['annotate'] = 1
-
-    txt = []
-    for id, row in params.iterrows():
-        txt.append('T={0:.1f}C'.format(row['temp']))
-
-    params['txt'] = txt
-    params['offset_x'] = 0
-    params['offset_y'] = 0
 
     columns = params.columns
     order = ['load', 'temp', 'eps0', 'eps50', 'eps90', 'eps100', 'epsf', 'epss', 
@@ -172,6 +179,15 @@ if len(steps_to_interpret) > 0:
     writer = pd.ExcelWriter(os.path.join(config['datapath'],'interpretation.xlsx'))
     params.to_excel(writer, columns=columns, sheet_name='results')
 
+    txt = []
+    for id, row in params.iterrows():
+        txt.append('T={0:.1f}C'.format(row['temp']))
+    
+    params['annotate'] = 1        
+    params['txt'] = txt
+    params['offset_x'] = 0
+    params['offset_y'] = 0
+    
     columns = ['load', 'temp', 'eps100', 'epsf', 'epss', 'annotate', 'txt', 'offset_x', 'offset_y']
     params.to_excel(writer, columns=columns, sheet_name='plotting')
     writer.save()

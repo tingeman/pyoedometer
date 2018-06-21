@@ -16,7 +16,7 @@ from pyoedometer import *
 
 
 # Read information from files
-info = read_config('sample_1/config_sample_1.yml')
+info = read_config('sample_6/config_sample_6.yml')
 
 config = info['config']
 sample_info = info['sample']
@@ -34,15 +34,15 @@ steps_to_overview = []
 steps_to_save = []
 
 # Specify which steps to process or plot
-#steps_to_interpret = []
+#steps_to_interpret = [20]
 #steps_to_interpret = [24, 25, 26, 27] 
 steps_to_interpret = [d['step'] for d in interpret]
 
-#steps_to_plot =  [14,14.1,15] 
+#steps_to_plot =  [20] 
 #steps_to_plot = [24, 25, 26, 27]  
 steps_to_plot = [d['step'] for d in history]
 
-#steps_to_overview = [2]
+#steps_to_overview = [20]
 #steps_to_overview = [14,14.1,15]
 steps_to_overview = [d['step'] for d in history]    
 

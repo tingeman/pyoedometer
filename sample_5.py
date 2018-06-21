@@ -16,7 +16,7 @@ from pyoedometer import *
 
 
 # Read information from files
-info = read_config('sample_1/config_sample_1.yml')
+info = read_config('sample_5/config_sample_5.yml')
 
 config = info['config']
 sample_info = info['sample']
@@ -119,6 +119,7 @@ for step_id, hist in enumerate(history):
                 params = interpret_k0(params)
 
     if hist['step'] in steps_to_overview:
+        #f = plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, hist)
         f = plot_step_overview_hobo2(lvdt_dat, pt100T, hoboT, hist)
         ovname = '{0:02.0f}_{1}_raw_{2:g}kPa_{3:g}C.png'.format(hist['step'], 
                                                                 info['sample']['name'].replace(' ','-'),
