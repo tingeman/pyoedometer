@@ -227,13 +227,13 @@ class SqrtLogLocator(Locator):
 
         if has_a:
             decades.extend([0])
-            decades.extend(b **(np.array([-2,-1]) + np.ceil(np.log(t))))
+            decades.extend(b**(np.array([-2,-1]) + np.ceil(np.log(t)/np.log(b))))
 
         if has_b:
             decades.extend(b ** (np.arange(b_range[0], b_range[1], stride)))
 
         decades = np.unique(decades)
-            
+        
         # Add the subticks if requested
 
         if isinstance(self._subs, six.string_types):
@@ -441,15 +441,15 @@ def annotation_arrow( ax, xmin, xmax, y, text, linecolor='black', linewidth=1, f
                 xycoords=xycoords, textcoords=xycoords,
                 bbox=dict(fc='w', ec='w', pad=1), zorder=-99)
                 
-def annotate_xaxis(ax, intersect=None, arrows='top'):
+def annotate_xaxis(ax, intersect=None, arrows='top', arrow_margin=1.03):
     xmin = ax.get_xlim()[0]
     xmax = ax.get_xlim()[1]
     
     if intersect is not None:
         if arrows is not None or arrows == 'none':
             if arrows == 'top':
-                annotation_arrow(ax,xmin,intersect,1.03,'$\sqrt{t}$', xycoords=("data", "axes fraction"))
-                annotation_arrow(ax,intersect,xmax,1.03,'$\log{(t)}$', xycoords=("data", "axes fraction"))    
+                annotation_arrow(ax,xmin,intersect,arrow_margin,'$\sqrt{t}$', xycoords=("data", "axes fraction"))
+                annotation_arrow(ax,intersect,xmax,arrow_margin,'$\log{(t)}$', xycoords=("data", "axes fraction"))    
         ax.axvline(x=intersect, ls='--', color='k', lw=1)
                 
 
@@ -462,15 +462,15 @@ mscale.register_scale(SqrtLogScale)
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    #FORMAT = "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-    #logging.basicConfig(format=FORMAT, stream=sys.stderr, level=logging.DEBUG)
+    FORMAT = "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+    logging.basicConfig(format=FORMAT, stream=sys.stderr, level=logging.DEBUG)
 
     f = plt.figure(figsize=(15,5))
     t = np.logspace(-1,3,50)
     s = np.log10(t)
     t2 = np.linspace(0, np.sqrt(1000), (np.sqrt(1000)-np.sqrt(0))*10)**2
     s2 = np.sqrt(t2)
-    intersect = 20
+    intersect = 0.33
 
     plt.plot(t, s, '.-b', lw=2)
     plt.plot(t2, s2, '.-r', lw=2)
@@ -487,4 +487,4 @@ if __name__ == '__main__':
     
     annotate_xaxis(ax=ax, intersect=intersect)
     
-    plt.show(block=False)
+    #plt.show(block=False)

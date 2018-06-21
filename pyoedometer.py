@@ -230,9 +230,20 @@ def read_lvdt_data(lvdt_info, sample_info):
                            engine='python')
 
     # Apply LVDT calibration
-    lvdt_dat['strain'] = ((lvdt_dat['Volt'] - calibration['coeff'][1]) / calibration['coeff'][0])
-    lvdt_dat['eps'] = ((lvdt_dat['strain'] - lvdt_h0) / sample_h0) * 100        
-    if calibration['negate']: lvdt_dat['eps'] = lvdt_dat['eps']*-1 
+    lvdt_dat['raw_strain'] = ((lvdt_dat['Volt'] - calibration['coeff'][1]) / calibration['coeff'][0])
+    lvdt_dat['strain'] = lvdt_dat['raw_strain'] - lvdt_h0
+    if calibration['negate']: lvdt_dat['strain'] = lvdt_dat['strain']*-1 
+    
+    if 'corrections' in lvdt_info and lvdt_info['corrections'] is not None:
+        for corr in lvdt_info['corrections']:
+            
+            t0 = dt.datetime.strptime(corr['t0'], '%Y-%m-%d %H:%M:%S')
+            t1 = dt.datetime.strptime(corr['t1'], '%Y-%m-%d %H:%M:%S')
+            idx = (lvdt_dat.index >= t0) & (lvdt_dat.index >= t0)
+            lvdt_dat.loc[idx,'strain'] += corr['dh']
+    
+    lvdt_dat['eps'] = ((lvdt_dat['strain']) / sample_h0) * 100        
+    
     
     lvdt_dat.drop(labels=['recnum'], axis=1, inplace=True)
     
@@ -415,9 +426,9 @@ def select_data(dfs, hist, buffer=0, end_buffer=0, max_len=0):
     
     # select data for plotting: only data within the present load/temperature step start and end times
     if dfs_islist:
-        dfs = [df[(df.index >= step_starttime) & (df.index <= step_endtime)] for df in dfs]
+        dfs = [df.loc[(df.index >= step_starttime).copy() & (df.index <= step_endtime),:] for df in dfs]
     else:
-        dfs = dfs[(dfs.index >= step_starttime) & (dfs.index <= step_endtime)]
+        dfs = dfs.loc[(dfs.index >= step_starttime).copy() & (dfs.index <= step_endtime),:]
         
     return dfs    
 
@@ -448,11 +459,11 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
     handles = [l1, l3]
     
     if len(hobo_step) > 0:
-        #l5, = ax2.plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
-        #l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
+        l5, = ax2.plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
+        l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
         l7, = ax3.plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
-        #handles.extend([l5, l6, l7])
-        handles.extend([l7])
+        handles.extend([l5, l6, l7])
+        #handles.extend([l7])
         
     # Plot figure title
     plt.suptitle('Step: {0},  Date: {1},  Load: {2}, kPa  Temp: {3} C'.format(step_info['step'],
@@ -677,7 +688,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                           size=9, color='k', bbox=bbox_props,
                           transform=axs[5].transAxes)
             
-    min_lims = [0.1, 1, 0.4, 2, 0.002]
+    min_lims = [0.1, 1, 0.4, 2, 0.1]
     
     min_ylim(axs[0], min_lims[0])
     
@@ -764,29 +775,30 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
     if temp is not None:
         if hobo is not None:
             f, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, sharex=False, sharey=False,
-                                              gridspec_kw={'height_ratios': [7, 3, 3, 1]},
-                                              figsize=(10, 7))
+                                              gridspec_kw={'height_ratios': [8, 3, 3, 1]},
+                                              figsize=(10, 12))
             hobo = add_minutes(hobo, t0=step_starttime)
         else:
             f, (ax1, ax2, ax4) = plt.subplots(nrows=3, ncols=1, sharex=False, sharey=False,
-                                         gridspec_kw={'height_ratios': [7, 3, 1]},
-                                         figsize=(10, 7./14.*11))
+                                         gridspec_kw={'height_ratios': [8, 3, 1]},
+                                         figsize=(10, 12./14.*11))
             
         temp = add_minutes(temp, t0=step_starttime)
     else:
         f, (ax1, ax4) = plt.subplots(nrows=2, ncols=1, sharex=False, sharey=False,
-                                         gridspec_kw={'height_ratios': [7, 1]},
-                                         figsize=(10, 7./14.*8))
+                                         gridspec_kw={'height_ratios': [8, 1]},
+                                         figsize=(10, 12./14.*8))
         
-    if markers:
-        ls = '.-k'
-    else:
-        ls = '-k'
-    
     handles = []
     
-    l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls, label='LVDT strain')
+    l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='-', color='k', label='LVDT strain')
     handles.append(l)   
+
+    if markers is not None:
+        if isinstance(markers, bool) & markers:
+            ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='None', color='k', marker='.', ms=5)
+        else:
+            ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], ls='None', color='k', marker='.', ms=5)
        
     if intersect is None:
         ax1.set_xscale('log')
@@ -815,8 +827,8 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
     if temp is not None:       
         if intersect is None:
             ax2.set_xscale('log')
-            if temp['minutes'].iloc[0] <= 0:
-                temp['minutes'].iloc[0] = ax1.get_xlim()[0]
+            if temp.loc[temp.index[0],'minutes'] <= 0:
+                temp.loc[temp.index[0],'minutes'] = ax1.get_xlim()[0]
         else:
             ax2.set_xlim(ax1.get_xlim())
             ax2.set_xscale('sqrtlog', intersectx=intersect)
@@ -895,11 +907,14 @@ def add_minutes(ts, t0=None):
 #    if not 'minutes' in ts.columns:
     if len(ts) > 0:
         if t0 is None:
-            ts['minutes'] = (ts.index-ts.index[0]).days*24*60 + (ts.index-ts.index[0]).seconds/60.
+            new_col = (ts.index-ts.index[0]).days*24*60 + (ts.index-ts.index[0]).seconds/60.
         else:
-            ts['minutes'] = (ts.index-t0).days*24*60 + (ts.index-t0).seconds/60.
+            new_col = (ts.index-t0).days*24*60 + (ts.index-t0).seconds/60.
+    else:
+        new_col = None
     
-    return ts
+    return ts.assign(minutes=new_col)
+    
     
 
 def plot_fit_line(a, b, ax, num=10, ls='--r', type='linear', intersect=None):
@@ -1025,43 +1040,98 @@ def interpret_BrinchHansen(times, values, h0, t1, t2, t3, t4):
     
     return params
     
+def basic_interpretation(strain, interpret, history, params=None):
+    if params is None:
+        params = {}
     
-def interpret_iso17892_5(times, values, h0, t1, t2, t3, t4):
-    params = {}
-    sqrt_a, sqrt_b = fit_line(times, values, t1, t2, use_points='endpoints', type='sqrt')
+    step = interpret['step']
     
-    sqrt115_vals = sqrt_a/1.15 * np.sqrt(times) + sqrt_b
-    idx = sign_changes(sqrt115_vals-values).nonzero()[0]
-    (x, y) = intersect_lines((np.sqrt(times[idx[-1]-1]), values[idx[-1]-1]),
-                                   (np.sqrt(times[idx[-1]]), values[idx[-1]]),
-                                   (np.sqrt(times[idx[-1]-1]), sqrt115_vals[idx[-1]-1]),
-                                   (np.sqrt(times[idx[-1]]), sqrt115_vals[idx[-1]]))
+    step_id = get_key_index(history, 'step', step)
     
-    params['sqrt_a'] = sqrt_a
-    params['sqrt_b'] = sqrt_b
-    params['eps0'] = sqrt_b
-    params['t90'] = x**2
-    params['eps90'] = y
-    params['eps100'] = (params['eps90']- params['eps0'])/0.9+params['eps0']
-    params['eps50'] =  (params['eps100']+params['eps0'])/2.
+    # Get load of previous step
+    if step_id == 0:
+        params['sig_n-1'] = 0
+    else:
+        params['sig_n-1'] = history[step_id-1]['load']
+        
+    # Get load of current step
+    params['sig_n'] = history[step_id]['load']
     
+    # strain in mm and % at beginning of step
+    params['delta_n-1'] = strain['strain'][0]
+    params['eps_n-1'] = strain['strain'][0]
+    
+    # strain in mm and % at end of step
+    if 'epsf' in interpret:
+        params['delta_n'] = get_strainf(strain, interpret['epsf'])
+        params['epsf'] = get_epsf(strain, interpret['epsf'])
+    else:
+        params['delta_n'] = get_strainf(strain)
+        params['epsf'] = get_epsf(strain)
 
+    return params
+    
+def interpret_k0(params):
+    gamma_w = 10 #  kN/m3
+    if 'Cv' in params:
+        params['K'] = (params['sig_n']-params['sig_n-1'])/((params['eps100']-params['eps0'])/100)
+        params['k0'] = params['Cv']*gamma_w/params['K']
+        #h_n_1 = (params['h0']-params['delta_n-1'])/1000
+        #params['k0'] = (h_n_1*params['delta_n-1']/1000 - (params['delta_n-1']/1000)**2) * gamma_w / (2*params['t50']*60*(params['sig_n']-params['sig_n-1']))
+    return params
+    
+def interpret_iso17892_5(times, values, interpret, history, params=None):
+    
+    if params is None:
+        params = {}
+    
+    if 'timec' in interpret:
+        timec_info = interpret['timec']
+    else:
+        timec_info = {}
+    
+    t1 = timec_info.get('t1', None)
+    t2 = timec_info.get('t2', None)
+    t3 = timec_info.get('t3', None)
+    t4 = timec_info.get('t4', None)
+    
+    if (t1 is not None) & (t2 is not None):
+        sqrt_a, sqrt_b = fit_line(times, values, t1, t2, use_points='endpoints', type='sqrt')
+        sqrt115_vals = sqrt_a * np.sqrt(times)/1.15 + sqrt_b
+        idx = sign_changes(sqrt115_vals-values).nonzero()[0]
+        (x, y) = intersect_lines((np.sqrt(times[idx[-1]-1]), values[idx[-1]-1]),
+                                 (np.sqrt(times[idx[-1]]), values[idx[-1]]),
+                                 (np.sqrt(times[idx[-1]-1]), sqrt115_vals[idx[-1]-1]),
+                                 (np.sqrt(times[idx[-1]]), sqrt115_vals[idx[-1]]))
+    
+        params['sqrt_a'] = sqrt_a
+        params['sqrt_b'] = sqrt_b
+        params['eps0'] = sqrt_b
+        params['t90'] = x**2
+        params['eps90'] = y
+        params['eps100'] = (params['eps90']- params['eps0'])/0.9+params['eps0']
+        params['delta100'] = params['eps100']*params['h0']/100
+        params['eps50'] =  (params['eps100']+params['eps0'])/2.
+        params['delta50'] = params['eps50']*params['h0']/100
+    
 #    x = (y-y1)*(x2-x1)/(y2-y1)+x1    
-    idx = sign_changes(values-params['eps50']).nonzero()[0]
-    params['t50'] = ((params['eps50']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
-    
-    idx = sign_changes(values-params['eps100']).nonzero()[0]
-    params['t100'] = ((params['eps100']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
+        idx = sign_changes(values-params['eps50']).nonzero()[0]
+        params['t50'] = ((params['eps50']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
+        
+        idx = sign_changes(values-params['eps100']).nonzero()[0]
+        params['t100'] = ((params['eps100']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
+        
+        params['L'] = params['h0']/2*(1-params['eps50']/100)    # Sample height at 50% consolidtation
+        Cv = 0.848 * (params['L']/1000)**2 / (params['t90']*60)
+        
+        params['Cv'] = Cv
 
-    
-    Cv = 0.848 * h0**2 / params['t90']
-    params['Cv'] = Cv
-    
-    log_a, log_b = fit_line(times, values, t3, t4, use_points='endpoints', type='log10')
-    
-    params['log_a'] = log_a
-    params['log_b'] = log_b
-    params['epss'] = log_a
+    if (t3 is not None) & (t4 is not None):        
+        log_a, log_b = fit_line(times, values, t3, t4, use_points='endpoints', type='log10')
+        
+        params['log_a'] = log_a
+        params['log_b'] = log_b
+        params['epss'] = log_a
    
     return params
     
@@ -1108,11 +1178,24 @@ def plot_legend(ax, info, step, loc='upper right'):
     ax.add_artist(at)
 
     
-def get_epsf(strain, conf):
-    deltat = dt.timedelta(seconds=conf['dt']*60)
+def get_epsf(strain, conf=None, deltat=10):
+    if conf is not None:
+        deltat = conf['dt']
+            
+    deltat = dt.timedelta(seconds=deltat*60)
     start_average = strain.index[-1]-deltat
     
     return strain[strain.index >= start_average]['eps'].mean()
+
+    
+def get_strainf(strain, conf=None, deltat=10):
+    if conf is not None:
+        deltat = conf['dt']
+            
+    deltat = dt.timedelta(seconds=deltat*60)
+    start_average = strain.index[-1]-deltat
+    
+    return strain[strain.index >= start_average]['strain'].mean()
     
     
 def get_step_temp(temp, conf):
@@ -1124,6 +1207,16 @@ def get_step_temp(temp, conf):
     return temp[(temp['minutes'] >= conf['t0']) & (temp['minutes'] <= t1)]['T'].mean()
 
     
+def get_raw_strain(strain, t0=0, dt=0.25):
+    if t0 == -1:
+        t0 = strain['minutes'].max()-dt
+    
+    avg = strain[(strain['minutes'] >= t0) & (strain['minutes'] <= t0+dt)]['raw_strain'].mean()
+    std = strain[(strain['minutes'] >= t0) & (strain['minutes'] <= t0+dt)]['raw_strain'].std()    
+        
+    return (avg, std)
+    
+    
 def get_key_index(lst, key, val):
     key_list = [d[key] for d in lst]
     try:
@@ -1134,14 +1227,29 @@ def get_key_index(lst, key, val):
 def plot_consolidation(df):
     f = plt.figure()
     
-    if 'linetype' in df.columns:
+    if 'linestyle' in df.columns:
         for id, row in df.iterrows():
             if id < len(df)-1:
-                l1, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['epsf'], color='k', ls=row['linetype'], lw=1)
-                l2, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['eps100'], color='b', ls=row['linetype'], lw=1)
+                l1, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['epsf'], color='k', ls=row['linestyle'], lw=1)
+                l2, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['eps100'], color='b', ls=row['linestyle'], lw=1)
+            
+            if ('marker' in row):
+                if (isinstance(row['marker'], str)):
+                    marker = row['marker']
+                else:
+                    marker = None
+            else:    
+                marker = '.'
+
+            try:
+                if np.isnan(marker):
+                    pdb.set_trace()
+            except:
+                pass
                 
-            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['epsf'], color='k', ls='none', lw=1, marker='.')
-            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['eps100'], color='b', ls='none', lw=1, marker='.')
+            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['epsf'], color='k', ls='none', lw=1, marker=marker)
+            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['eps100'], color='b', ls='none', lw=1, marker=marker)
+        
     else:
         l1, = plt.semilogx(df['load'], df['epsf'], '.-k', label=r'$\varepsilon_f$', lw=1)
         l2, = plt.semilogx(df['load'], df['eps100'], '.-b', label=r'$\varepsilon_{100}$', lw=1)

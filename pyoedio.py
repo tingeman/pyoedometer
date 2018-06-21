@@ -7,8 +7,8 @@ import numpy as np
 # and single curly braces {} for any python formatting 
 swfig = r"""
 \begin{{sidewaysfigure}}{0}
-	\centering
-	\includegraphics[width=\linewidth]{{{1}}}{2}{3}
+    \centering
+    \includegraphics[width=\linewidth]{{{1}}}{2}{3}
 \end{{sidewaysfigure}}"""
 
 #\caption{{{1}}}
@@ -16,8 +16,8 @@ swfig = r"""
 
 normalfig = r"""
 \begin{{figure}}{0}
-	\centering
-	\includegraphics[width=\linewidth]{{{1}}}{2}{3}
+    \centering
+    \includegraphics[width=\linewidth]{{{1}}}{2}{3}
 \end{{figure}}"""
 
 def _process_file(f, func, **kwargs):
@@ -39,7 +39,7 @@ def create_dirs(dir_list):
 def save_step(config, sample_info, hist, lvdt_step=None, pt100_step=None, hobo_step=None):
     fname = '{0:02.0f}_{1}_{2:g}kPa_{3:g}C.xlsx'.format(hist['step'], 
                                                         sample_info['name'].replace(' ','-'),
-											            hist['load'], hist['temp'])
+                                                        hist['load'], hist['temp'])
     
     print('Saving: {0}'.format(fname))
     
@@ -109,25 +109,54 @@ def append_normal_figure(file, figfilepath, caption=None, label=None,loc='[htp]'
 
 
     
-def append_table(file, df, na_rep='', centering=False, **kwargs):
+def append_table(file, df, na_rep='', small=True, sideways=False, centering=False, loc='[htp]', **kwargs):
     
-    file.write('\\begin{table}\n')
+#    if sideways:
+#        file.write('\\begin{{sidewaystable}}{0}\n'.format(loc))
+#    else:
+#        file.write('\\begin{{table}}{0}\n'.format(loc))
+    
+    if sideways:
+        file.write('\\begin{turn}{90}\n')
+        file.write('\\begin{minipage}{0.9\\textheight}\n')
+        file.write('\\begin{table}[H]\n')
+    else:
+        file.write('\\begin{{table}}{0}\n'.format(loc))
     
     if centering:
         file.write('\\centering\n')
+        
+    if small:
+        file.write('\\small\n')
     
     txt = df.to_latex(na_rep=na_rep, **kwargs)
     file.write(txt)
 
     file.write('\\end{table}')
 
-    file.write('\n\n')
+    if sideways:
+        file.write('\\end{minipage}\n')
+        file.write('\\end{turn}\n')
     
+#    if sideways:
+#        file.write('\\end{sidewaystable}')
+#    else:
+#        file.write('\\end{table}')
 
+    file.write('\n\n')
+
+    
+def append_section_heading(file, secname, label=None, indent=0):
+    if label is None:
+        file.write('{0}\\section{{{1}}}\n\n'.format( ' '*indent,secname))
+    else:
+        file.write('{0}\\section{{{1}}}\label{{{2}}}\n\n'.format( ' '*indent,secname,label))
+    
 
 def append_newpage(file):
     file.write('\\clearpage\n\n')
 
+    
 def append_chapter_title(file, title, label=None):
     txt = '\chapter{{{0}}}'.format(title)
     if label is not None:
@@ -150,15 +179,18 @@ def produce_latex_file(info):
     
     with open(latex_info['filename'], 'w') as f:
         
-        append_chapter_title(f, 'Sample "{0}"'.format(sample_info['name']))
+        append_chapter_title(f, 'Sample "{0}"'.format(sample_info['name']), 
+                             label='app:{0}'.format(sample_info['nickname'].lower().replace(' ','_')))
 
+        append_section_heading(f,'Consolidation curve')
+        
         tcname = posixpath.join('.', latex_info['figspath'], 'consolidation_curve.png')
-        append_normal_figure(f, tcname)
+        append_normal_figure(f, tcname, loc='[hp!]')
         
         sifo = [['Name', sample_info['name']],
                 ['Depth', sample_info['depth']],
-                ['Initial height', '{0} mm'.format(sample_info['h0'])],
-                ['Diameter', '{0:.1f} mm'.format(sample_info['diameter'])],
+                #['Initial height', '{0} mm'.format(sample_info['h0'])],
+                #['Diameter', '{0:.1f} mm'.format(sample_info['diameter'])],
                 ['Start date', history[0]['date']],
                 ['End date', history[-1]['date2']]
                 ]
@@ -167,38 +199,153 @@ def produce_latex_file(info):
         append_table(f, df, centering=True, index=False)
         
         append_newpage(f)
-
+        
+        cfname, cfext = os.path.splitext(os.path.basename(latex_info['filename']))
+        cfname = cfname + '_classification.tex'
+        
+        f.write('\\IfFileExists{{./{0}}}{{\n'.format(cfname))
+        append_section_heading(f, 'Classification parameters', indent=4)
+        f.write('    \\input{{./{0}}}\n'.format(cfname))
+        f.write('    \\clearpage\n')
+        f.write('}{}\n\n')
+        
+        append_section_heading(f, 'Overview of load steps and interpreted results')
+        
         if os.path.exists(latex_info['interpretation_file']):
             results = pd.read_excel(latex_info['interpretation_file'], sheetname='results')
             
-            cols=['step', 'load', 'temp', 'epsf', 'eps100', 'epss', 'Cv']
-            dropcols = [col for col in results.columns if col not in cols]
-            results.drop(labels=dropcols, axis=1, inplace=True)                
-            
-            results.rename(columns = {'step':'Step', 'load':'$\\sigma$ [kPa]', 
-                                    'temp': 'T [degC]', 'epsf': '$\\varepsilon_f$ [\%]', 
-                                    'eps100':'$\\varepsilon_{100}$ [\%]',
-                                    'epss':'$C_{\\alpha}$ [\%/lct]',
-                                    'Cv':'$c_v$ [$m^2/s$]',
-                                    }, inplace = True)
-                                    
-            def f3(x):
+            def fixed(x, sig=3):
+                txt = '{{0:.{0:d}f'.format(sig) + '}'
                 if np.isnan(x):
                     return ''
                 else:
-                    return '{0:.3f}'.format(x)
+                    return txt.format(x)
                 
-            formatters = {'$\\sigma$ [kPa]': lambda x: '{0:.1f}'.format(x),
-                        'T [degC]': lambda x: '{0:.1f}'.format(x),
-                        '$\\varepsilon_f$ [\%]': lambda x: f3(x),
-                        '$\\varepsilon_{100}$ [\%]': lambda x: f3(x),
-                        '$C_{\alpha}$ [\%/lct]': lambda x: f3(x),
-                        '$c_v$ [$m^2/s$]': lambda x: f3(x)
-                        }
+            def scientific(x, sig=3):
+                txt = '\\num{{{0:.'+'{0:d}e'.format(sig) + '}}}'
+                if np.isnan(x):
+                    return ''
+                else:
+                    return txt.format(x)
                         
-            append_table(f, results, centering=True, 
-                        na_rep='', index=False, escape=False, formatters=formatters)
-        
+            formatters = {'step':   lambda x: fixed(x, 0),
+                          'load':   lambda x: fixed(x, 1),
+                          'temp':   lambda x: fixed(x, 1),
+                          'eps0':   lambda x: fixed(x, 3),
+                          'eps50':  lambda x: fixed(x, 3),
+                          'eps90':  lambda x: fixed(x, 3),
+                          'eps100': lambda x: fixed(x, 3),
+                          'epsf':   lambda x: fixed(x, 3),
+                          't50':    lambda x: fixed(x, 3),
+                          't90':    lambda x: fixed(x, 3),
+                          't100':   lambda x: fixed(x, 3),
+                          'epss':   lambda x: fixed(x, 3),
+                          'Cv':     lambda x: scientific(x, 3),
+                          'K':      lambda x: fixed(x, 0),
+                          'k0':     lambda x: scientific(x, 3)
+                         }
+            
+
+            columns = ['step',
+                       'load',
+                       'temp', 
+                       'eps0',
+                       'eps50', 
+                       'eps100',
+                       'epsf',
+                       'epss', 
+                       'Cv',   
+                       'K',    
+                       'k0']
+            
+            dropcols = [col for col in results.columns if col not in columns]
+            df = results.drop(labels=dropcols, axis=1, inplace=False)                
+            cols = [col for col in columns if col in df.columns]
+            
+            # Since we are using siunitx to typeset the columns, 
+            # non-numerical cell contents must be braced...
+            headers = ['{Step}', 
+                       '{$\\sigma$ [\si{kPa}]}', 
+                       '{$T$ [\si{\celsius}]}',
+                       '{$\\varepsilon_{0}$ [\%]}',
+                       '{$\\varepsilon_{50}$ [\%]}',
+                       '{$\\varepsilon_{100}$ [\%]}',
+                       '{$\\varepsilon_{f}$ [\%]}',
+                       '{$C_{\\alpha}$ [\%/lct]}',
+                       '{$c_v$ [\si{m^2/s}]}',
+                       '{$K$ [\si{kPa}]}',
+                       '{$k_0$ [\si{m/s}]}']                       
+
+                       
+            heads = [headers[id] for id, col in enumerate(columns) if col in df.columns]
+                        
+            append_table(f, df, centering=True, sideways=True, loc='[H]', columns=cols, header=heads, 
+                        na_rep='', index=False, escape=False, formatters=formatters,
+                        column_format='c'*len(heads))
+
+            
+            
+#            columns = ['step',
+#                       'load',
+#                       'temp', 
+#                       'eps0',
+#                       'eps50', 
+#                       'eps90',
+#                       'eps100',
+#                       'epsf',
+#                       't50',
+#                       't90',  
+#                       't100']
+#            
+#            dropcols = [col for col in results.columns if col not in columns]
+#            df = results.drop(labels=dropcols, axis=1, inplace=False)                
+#            cols = [col for col in columns if col in df.columns]
+#            
+#            headers = ['Step', 
+#                       '$\\sigma$ [kPa]', 
+#                       '$T$ [\si{\celsius}]',
+#                       '$\\varepsilon_{0}$ [\%]',
+#                       '$\\varepsilon_{50}$ [\%]',
+#                       '$\\varepsilon_{90}$ [\%]',
+#                       '$\\varepsilon_{100}$ [\%]',
+#                       '$\\varepsilon_{f}$ [\%]',
+#                       '$t_{50}$ [min]',
+#                       '$t_{90}$ [min]',
+#                       '$t_{100}$ [min]']
+#                       
+#            heads = [headers[id] for id, col in enumerate(columns) if col in df.columns]
+#                        
+#            append_table(f, df, centering=True, sideways=True, loc='[hp!]', columns=cols, header=heads, 
+#                        na_rep='', index=False, escape=False, formatters=formatters)
+#
+#            append_newpage(f)
+#                        
+#            columns = ['step',
+#                       'load',
+#                       'temp', 
+#                       'epss', 
+#                       'Cv',   
+#                       'K',    
+#                       'k0']
+#
+#            dropcols = [col for col in results.columns if col not in columns]
+#            df = results.drop(labels=dropcols, axis=1, inplace=False)                
+#            cols = [col for col in columns if col in df.columns]
+#                       
+#            headers = ['Step', 
+#                       '$\\sigma$ [kPa]', 
+#                       '$T$ [\si{\celsius}]',
+#                       '$C_{\\alpha}$ [\%/lct]',
+#                       '$c_v$ [$m^2/s$]',
+#                       '$K$ [$kPa$]',
+#                       '$k_0$ [$m/s$]']
+#                       
+#            heads = [headers[id] for id, col in enumerate(columns) if col in df.columns]
+#                        
+#            append_table(f, df, centering=True, loc='[hp!]', columns=cols, header=heads, 
+#                        na_rep='', index=False, escape=False, formatters=formatters)
+
+                        
         else:
             f.write('Interpretation data is missing...\n')
         
@@ -208,6 +355,9 @@ def produce_latex_file(info):
         append_sideways_figure(f, fname)
 
         append_newpage(f)        
+        
+        f.write('\\iftimecurves\n')
+        f.write('\\fakesection{Time curves}\n\n')
         
         for hist in info['history']:
             ovname = '{0:02.0f}_{1}_raw_{2:g}kPa_{3:g}C.png'.format(hist['step'], 
@@ -224,5 +374,5 @@ def produce_latex_file(info):
             
             append_newpage(f)
     
-    
+        f.write('\\fi\n')
 
