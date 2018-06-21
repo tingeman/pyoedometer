@@ -42,9 +42,12 @@ _ReSharper*/
 .idea/
 
 /old_code/
-/sample_1_2/
-/sample_3_4/
+/sample_*/
+/lab_results/
+
 
 #project specific
 *.png
 *.h5
+*.xlsx
+
