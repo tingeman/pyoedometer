@@ -1,62 +1,12 @@
-
-# embedding_in_qt5.py --- Simple Qt5 application embedding matplotlib canvases
-#
-# Copyright (C) 2005 Florent Rougon
-#               2006 Darren Dale
-#               2015 Jens H Nielsen
-#
-# This file is an example program for matplotlib. It may be used and
-# modified with no restriction; raw copies as well as modified versions
-# may be distributed without limitation.
-
-
-# SOME GOOD INFORMATION:
-# https://helpful.knobs-dials.com/index.php/Qt_and_PyQt_notes
-# https://stackoverflow.com/questions/5304570/how-to-save-new-data-in-tree-model-view
-# http://rowinggolfer.blogspot.dk/2010/05/qtreeview-and-qabractitemmodel-example.html
-# https://stackoverflow.com/questions/31342228/pyqt-tree-widget-adding-check-boxes-for-dynamic-removal
-# https://stackoverflow.com/questions/31600462/spanning-multiple-columns-using-qtreeview-and-qabstractitemmodel
-
-# Integrating Matplotlib graphs
-# https://sukhbinder.wordpress.com/2013/12/16/simple-pyqt-and-matplotlib-example-with-zoompan/
-# https://pythonspot.com/en/pyqt5-matplotlib/
-
-# pyqt threading
-# https://nikolak.com/pyqt-threading-tutorial/
-
-from __future__ import unicode_literals
-import pdb
-import sys
 import os
-import random
-import yaml
-import datetime as dt
 import numpy as np
+import datetime as dt
 import pandas as pd
+import yaml
 import matplotlib
-matplotlib.use('Qt5Agg') # Make sure that we are using QT5
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-
-from scipy.optimize import fsolve
-
-import sqrtlogscale
-#from sqrtlogscale import SqrtLogScale
-
-progname = os.path.basename(sys.argv[0])
-progversion = "0.1"
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Data definitions
-# ----------------------------------------------------------------------------------------------------------------------
-
-# TEST INFORMATION
-
-#history = []
-#hist_fname = 'hist.yml'
-#data_path = './sample_1_2'
+from matplotlib import pyplot as plt
+from . import sqrtlogscale
+    
 #
 ## Sample info
 #sample_1_h0 = 20.50  # mm
@@ -570,8 +520,13 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     pt100_step = add_minutes(pt100_step)
     hobo_step = add_minutes(hobo_step)
 
-    end_minutes = lvdt_step['minutes'][-1]
-    
+    if len(lvdt_step)>0:
+        end_minutes = lvdt_step['minutes'][-1]
+    elif len(pt100_step)>0:
+        end_minutes = pt100_step['minutes'][-1]
+    else:
+        end_minutes = 0
+        
     hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
     
     #f, axs = plt.subplots(nrows=4, ncols=2, sharex=False, sharey=False,
@@ -593,40 +548,44 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     # make sure the top 3 axes share the same x-axis
     axs[1].get_shared_x_axes().join(axs[1],axs[2], axs[3])
     
-    # Plot the first lvdt
-    l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='LVDT strain', zorder=10)
+    handles = []
     
-    
-    # plot start of time series
-    #l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-    l, = axs[0].plot_date(lvdt_start.index, lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-    
-    # plot end of time series
-    l, = axs[5].plot_date(lvdt_end.index, lvdt_end['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-    
-    #axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
-    axs[0].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-    axs[5].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-    
-    axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-    axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-    axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+    if len(lvdt_step) > 0:
+        # Plot the first lvdt
+        l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='LVDT strain', zorder=10)
+        handles.extend([l1])
+        
+        # plot start of time series
+        #l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        l, = axs[0].plot_date(lvdt_start.index, lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        
+        # plot end of time series
+        l, = axs[5].plot_date(lvdt_end.index, lvdt_end['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        
+        #axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
+        axs[0].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+        axs[5].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+        
+        axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+        axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+        axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
 
-    axs[1].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-    axs[2].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-    axs[3].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-    
-    y0 = lvdt_step[lvdt_step['minutes']==0]['eps'].values[0]
-    axs[0].axhline(y=y0, ls='--', color='0.65', zorder=-100)
-    axs[1].axhline(y=y0, ls='--', color='0.65', zorder=-100)
-    
-    # invert the direction of both y-axes
-    axs[1].invert_yaxis()
-    axs[0].invert_yaxis()
-    axs[5].invert_yaxis()
-    
-    l3, = axs[2].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
-    handles = [l1, l3]
+        axs[1].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+        axs[2].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+        axs[3].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+        
+        y0 = lvdt_step[lvdt_step['minutes']==0]['eps'].values[0]
+        axs[0].axhline(y=y0, ls='--', color='0.65', zorder=-100)
+        axs[1].axhline(y=y0, ls='--', color='0.65', zorder=-100)
+        
+        # invert the direction of both y-axes
+        axs[1].invert_yaxis()
+        axs[0].invert_yaxis()
+        axs[5].invert_yaxis()
+
+    if len(pt100_step) > 0:
+        l3, = axs[2].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+        handles.extend([l3])
     
     if len(hobo_step) > 0:
         l5, = axs[2].plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
@@ -635,7 +594,12 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
         #handles.extend([l5, l6, l7])
         handles.extend([l5, l7])
     else:
-        axs[3].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
+        if len(lvdt_step)>0:
+            axs[3].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
+        elif len(pt100_step)>0:
+            axs[3].plot_date(pt100_step.index[0], pt100_step['T'][0], '-', color='none', zorder=10)
+        else:
+            pass
         bbox_props = dict(boxstyle="square,pad=0.3", fc="none", ec="none")
         t = axs[3].text(0.5, 0.5, "No data available", 
                           ha="center", va="center", rotation=0,
@@ -695,7 +659,10 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     #if step_info['step'] == 27:
     #    pdb.set_trace()
     
-    min_lim = np.sort([lvdt_step['eps'][0], lvdt_step['eps'][-1]])
+    if len(lvdt_step)>0:
+        min_lim = np.sort([lvdt_step['eps'][0], lvdt_step['eps'][-1]])
+    elif len(pt100_step)>0:
+        min_lim = np.sort([pt100_step['T'][0], pt100_step['T'][-1]])
     min_lim[0] -= 0.2
     min_lim[1] += 0.2
     
