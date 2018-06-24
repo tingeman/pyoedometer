@@ -757,39 +757,41 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
                                          figsize=(10, 12./14.*8))
         
     handles = []
-    
-    l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='-', color='k', label='LVDT strain')
-    handles.append(l)   
 
-    if markers is not None:
-        if isinstance(markers, bool) & markers:
-            ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='None', color='k', marker='.', ms=5)
-        else:
-            ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], ls='None', color='k', marker='.', ms=5)
+    if len(strain)>0:
+        l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='-', color='k', label='LVDT strain')
+        handles.append(l)   
+
+        if markers is not None:
+            if isinstance(markers, bool) & markers:
+                ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='None', color='k', marker='.', ms=5)
+            else:
+                ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], ls='None', color='k', marker='.', ms=5)
        
     if intersect is None:
         ax1.set_xscale('log')
     else:
         ax1.set_xscale('sqrtlog', intersectx=intersect)
 
-    #ax.set_ylim([-2, np.ceil(np.sqrt(intersect))+1])
-    #plt.gca().set_xlim([0, 2300])
-    ax1.set_ylabel('Strain [%]')
-    ax1.grid(True)
-    ax1.grid(b=True, which='minor', ls='--')
+    if len(strain)>0:
+        #ax.set_ylim([-2, np.ceil(np.sqrt(intersect))+1])
+        #plt.gca().set_xlim([0, 2300])
+        ax1.set_ylabel('Strain [%]')
+        ax1.grid(True)
+        ax1.grid(b=True, which='minor', ls='--')
 
-    xlim = ax1.get_xlim()
-    new_xlim = [xl for xl in xlim]
-    base = np.power(10, np.floor(np.log10(strain['minutes'][-1])))
-    new_xlim[1] = np.ceil(strain['minutes'][-1]/base)*base
-    ax1.set_xlim(new_xlim)
-    ax1.invert_yaxis()
-    
-    min_lim = np.sort([strain['eps'][0], strain['eps'][-1]])
-    min_lim[0] -= 0.1
-    min_lim[1] += 0.1
-    ignore_spikes(ax1, 0.2, min_lim=min_lim)
-    min_ylim(ax1, 0.1)
+        xlim = ax1.get_xlim()
+        new_xlim = [xl for xl in xlim]
+        base = np.power(10, np.floor(np.log10(strain['minutes'][-1])))
+        new_xlim[1] = np.ceil(strain['minutes'][-1]/base)*base
+        ax1.set_xlim(new_xlim)
+        ax1.invert_yaxis()
+        
+        min_lim = np.sort([strain['eps'][0], strain['eps'][-1]])
+        min_lim[0] -= 0.1
+        min_lim[1] += 0.1
+        ignore_spikes(ax1, 0.2, min_lim=min_lim)
+        min_ylim(ax1, 0.1)
         
     if temp is not None:       
         if intersect is None:
@@ -1024,17 +1026,18 @@ def basic_interpretation(strain, interpret, history, params=None):
     # Get load of current step
     params['sig_n'] = history[step_id]['load']
     
-    # strain in mm and % at beginning of step
-    params['delta_n-1'] = strain['strain'][0]
-    params['eps_n-1'] = strain['strain'][0]
-    
-    # strain in mm and % at end of step
-    if 'epsf' in interpret:
-        params['delta_n'] = get_strainf(strain, interpret['epsf'])
-        params['epsf'] = get_epsf(strain, interpret['epsf'])
-    else:
-        params['delta_n'] = get_strainf(strain)
-        params['epsf'] = get_epsf(strain)
+    if len(strain)>0:
+        # strain in mm and % at beginning of step
+        params['delta_n-1'] = strain['strain'][0]
+        params['eps_n-1'] = strain['strain'][0]
+        
+        # strain in mm and % at end of step
+        if 'epsf' in interpret:
+            params['delta_n'] = get_strainf(strain, interpret['epsf'])
+            params['epsf'] = get_epsf(strain, interpret['epsf'])
+        else:
+            params['delta_n'] = get_strainf(strain)
+            params['epsf'] = get_epsf(strain)
 
     return params
     
