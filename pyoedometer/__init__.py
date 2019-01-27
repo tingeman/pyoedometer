@@ -622,13 +622,14 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         
         
     # Plot figure title
-    plt.suptitle('Step: {0},  Date: {1},  Load: {2} kPa,  Temp: {3} C, Duration: {4:.1f} h'.format(step_info['step'],
+    plt.suptitle('Name: {5}, Step: {0},  Date: {1},  Load: {2} kPa,  Temp: {3} C, Duration: {4:.1f} h'.format(step_info['step'],
                                                                               step_info['date'],
                                                                               step_info['load'],
                                                                               step_info['temp'],
-                                                                              step_duration_h),
+                                                                              step_duration_h,
+                                                                              step_info['name']),
                  fontsize=14)
-
+                 
     #axs[0].set_xlabel('Time [min]')
     axs[0].set_ylabel('Strain [{0}]'.format(lvdt_unit))
     axs[1].set_ylabel('Strain [{0}]'.format(lvdt_unit))
