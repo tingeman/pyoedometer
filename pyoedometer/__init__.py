@@ -550,12 +550,12 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
 
     f = plt.figure(figsize=(15,9))
     gs = matplotlib.gridspec.GridSpec(12, 4)
-    plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))
-    plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))
-    plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))
-    plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))
-    plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))
-    plt.subplot(gs.new_subplotspec((5, 0), colspan=1, rowspan=4))
+    plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))      # axes for plot of beginning of step
+    plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))      # axes for plot of overview of strain
+    plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))      # axes for plot of overview frost room temperatures
+    plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))      # axes for plot of overview lab temperatures
+    plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))     # axes for legend
+    plt.subplot(gs.new_subplotspec((6, 0), colspan=1, rowspan=4))      # axes for plot of end of step
     
     axs = f.axes
     
@@ -640,7 +640,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     labels = [h.get_label() for h in handles]
 
     axs[4].axis('off')
-    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=3, fontsize=10)
+    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=4, fontsize=10)
     
     axes = [axs[1], axs[2]]
     if len(hobo_step) > 0:
