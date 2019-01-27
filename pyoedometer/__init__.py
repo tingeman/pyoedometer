@@ -1303,14 +1303,16 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
     # Plot the first lvdt
     l1, = axs[0].plot_date(lvdt_dat.index, lvdt_dat[lvdt_col], '-k', label='LVDT strain', zorder=10)
     
-    lt1, = axs[1].plot_date(pt100_dat.index, pt100_dat['T'], '-k', label='PT100 temp', zorder=10)
-    lt1a, = axs[1].plot_date(hobo_dat.index, hobo_dat['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
+    if plot_temp:
+        lt1, = axs[1].plot_date(pt100_dat.index, pt100_dat['T'], '-k', label='PT100 temp', zorder=10)
+        lt1a, = axs[1].plot_date(hobo_dat.index, hobo_dat['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
     
     #ax = plt.gca()
     
     for id, t in enumerate(t0_list):
         l2 = axs[0].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
-        lt2 = axs[1].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
+        if plot_temp:
+            lt2 = axs[1].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
         
         axs[0].annotate('{0:.0f}'.format(steps[id]), xy=((tend_list[id]-t)/2.+t,1.03),
                     xytext = ((tend_list[id]-t)/2.+t,1.03),
@@ -1321,7 +1323,8 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
     #for t in tend_list:
     #    l3 = ax.axvline(x=t, ls='--', color='0.65', zorder=-100, label='End of step')
     axs[0].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
-    axs[1].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
+    if plot_temp:
+        axs[1].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
     
     # invert the direction of both y-axes
     axs[0].invert_yaxis()
@@ -1338,7 +1341,8 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
     axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
     axs[0].grid(True)
 
-    min_lim = np.sort([lvdt_dat.loc[t0_list[0]][lvdt_col], lvdt_dat.loc[tend_list[-1]][lvdt_col]])
+    min_lim = np.sort([lvdt_dat.loc[lvdt_dat.index>=t0_list[0]].iloc[0][lvdt_col], 
+                       lvdt_dat.loc[lvdt_dat.index<=tend_list[-1]].iloc[-1][lvdt_col]])
     min_lim[0] -= 1
     min_lim[1] += 1
     
