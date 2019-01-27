@@ -6,7 +6,7 @@ import yaml
 import matplotlib
 from matplotlib import pyplot as plt
 from . import sqrtlogscale
-    
+import pdb    
 #
 ## Sample info
 #sample_1_h0 = 20.50  # mm
@@ -180,7 +180,13 @@ def read_lvdt_data(lvdt_info, sample_info):
                            engine='python')
 
     # Apply LVDT calibration
-    lvdt_dat['raw_strain'] = ((lvdt_dat['Volt'] - calibration['coeff'][1]) / calibration['coeff'][0])
+    if calibration['type'].lower() == "linear":
+        lvdt_dat['raw_strain'] = (calibration['coeff'][0]*lvdt_dat['Volt'] + calibration['coeff'][1])
+    elif calibration['type'].lower() == "invlinear":
+        lvdt_dat['raw_strain'] = ((lvdt_dat['Volt'] - calibration['coeff'][1]) / calibration['coeff'][0])
+    else:
+        raise ValueError("Calibration type specifier not recognized (should be 'linear' or 'invlinear')")
+        
     lvdt_dat['strain'] = lvdt_dat['raw_strain'] - lvdt_h0
     if calibration['negate']: lvdt_dat['strain'] = lvdt_dat['strain']*-1 
     
@@ -238,9 +244,10 @@ def read_hobo_data(hobo_conf):
 
         # global offset in seconds to be added to the time stamp
         global_offset = dt.timedelta(days=0, seconds=hobo_conf.get('deltatime', 0))
+        sep = hobo_conf.get('separator',',')
         
         for filename in os.listdir(directory):  # Iterate over all files in the directory
-            if filename.endswith(".csv"):  # If file is a csv file we should process it
+            if filename.endswith("."+hobo_conf.get('file_extension', 'csv')):  # If file is a csv file we should process it
                 fname = os.path.join(directory, filename)
 
                 print('\n\n\n\nFile: {0}'.format(fname))
@@ -252,7 +259,7 @@ def read_hobo_data(hobo_conf):
                 print('{0:30s}'.format(line3))
 
                 # Extract the time zone infromation
-                time_zone = line2[line2.index('GMT'): line2.index('","Temp')]
+                time_zone = line2[line2.index('GMT'): line2.index('"{0}"Temp'.format(sep))]
                 utc_offset = (float(time_zone[4:6]) * 3600 + float(time_zone[7:]) * 60)  # in seconds
                 if time_zone[3] == '-':
                     utc_offset = -utc_offset
@@ -260,7 +267,7 @@ def read_hobo_data(hobo_conf):
                 print('tz: {0}, tz offset: {1}, tz offset dt: {2}'.format(time_zone, utc_offset, utc_offset_dt))
                 
                 # Read the current file
-                df = pd.read_csv(fname, sep=',', skiprows=2, index_col=0, usecols=[1, 2, 3, 4],
+                df = pd.read_csv(fname, sep=sep, skiprows=2, index_col=0, usecols=[1, 2, 3, 4],
                                  names=['datetime', 'T(1)', 'T(2)', 'T(3)'], parse_dates=[0], dayfirst=False)
 
                 id = len(index)
@@ -496,9 +503,16 @@ def min_ylim(ax, min_lim):
         ax.set_ylim([yln, ylx])    
     
     
-def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
+def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=False):
 
     plot_end_of_step = True
+    
+    if plot_mV:
+        lvdt_col = 'Volt'
+        lvdt_unit = 'mV'
+    else:
+        lvdt_col = 'eps'
+        lvdt_unit = '%'
     
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
     step_endtime = dt.datetime.combine(step_info['date2'], step_info['time2'])
@@ -552,15 +566,15 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     
     if len(lvdt_step) > 0:
         # Plot the first lvdt
-        l1, = axs[1].plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='LVDT strain', zorder=10)
+        l1, = axs[1].plot_date(lvdt_step.index, lvdt_step[lvdt_col], '-k', label='LVDT strain', zorder=10)
         handles.extend([l1])
         
         # plot start of time series
-        #l, = axs[0].plot(lvdt_start['minutes'], lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-        l, = axs[0].plot_date(lvdt_start.index, lvdt_start['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        #l, = axs[0].plot(lvdt_start['minutes'], lvdt_start[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        l, = axs[0].plot_date(lvdt_start.index, lvdt_start[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
         
         # plot end of time series
-        l, = axs[5].plot_date(lvdt_end.index, lvdt_end['eps'], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        l, = axs[5].plot_date(lvdt_end.index, lvdt_end[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
         
         #axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
         axs[0].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
@@ -595,7 +609,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
         handles.extend([l5, l7])
     else:
         if len(lvdt_step)>0:
-            axs[3].plot_date(lvdt_step.index[0], lvdt_step['strain'][0], '-', color='none', zorder=10)
+            axs[3].plot_date(lvdt_step.index[0], lvdt_step[lvdt_col][0], '-', color='none', zorder=10)
         elif len(pt100_step)>0:
             axs[3].plot_date(pt100_step.index[0], pt100_step['T'][0], '-', color='none', zorder=10)
         else:
@@ -616,9 +630,9 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
                  fontsize=14)
 
     #axs[0].set_xlabel('Time [min]')
-    axs[0].set_ylabel('Strain [%]')
-    axs[1].set_ylabel('Strain [%]')
-    axs[5].set_ylabel('Strain [%]')
+    axs[0].set_ylabel('Strain [{0}]'.format(lvdt_unit))
+    axs[1].set_ylabel('Strain [{0}]'.format(lvdt_unit))
+    axs[5].set_ylabel('Strain [{0}]'.format(lvdt_unit))
     axs[2].set_ylabel('Temperature [C]')
     axs[3].set_ylabel('Temperature [C]')
 
@@ -660,7 +674,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info):
     #    pdb.set_trace()
     
     if len(lvdt_step)>0:
-        min_lim = np.sort([lvdt_step['eps'][0], lvdt_step['eps'][-1]])
+        min_lim = np.sort([lvdt_step[lvdt_col][0], lvdt_step[lvdt_col][-1]])
     elif len(pt100_step)>0:
         min_lim = np.sort([pt100_step['T'][0], pt100_step['T'][-1]])
     min_lim[0] -= 0.2
@@ -728,7 +742,6 @@ def plot_step_overview(lvdt_step, pt100_step, hobo_step, step_info):
     
     
 def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, markers=False):
-
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
     step_endtime = dt.datetime.combine(step_info['date2'], step_info['time2'])
     step_duration_h = (step_endtime-step_starttime).days*24. + (step_endtime-step_starttime).seconds/3600.
@@ -1246,7 +1259,9 @@ def plot_consolidation(df):
     
     
     
-def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, history, sample_info):
+def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, 
+                       history, sample_info, 
+                       plot_mV=False, plot_temp=False):
 
     t0_list = [dt.datetime.combine(h['date'], h['time1']) for h in history]
     tend_list = [dt.datetime.combine(h['date2'], h['time2']) for h in history]
@@ -1261,16 +1276,43 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, history, sample_info):
     #pt100_start = add_minutes(pt100_step, t0=step_starttime)
     #hobo_start = add_minutes(hobo_step, t0=step_starttime)
     
-    f = plt.figure(figsize=(6.4*2,4.8))
+    hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
+    
+    if plot_mV:
+        lvdt_col = 'Volt'
+        lvdt_unit = 'mV'
+    else:
+        lvdt_col = 'eps'
+        lvdt_unit = '%'
+    
+    if plot_temp:
+        f = plt.figure(figsize=(12.8,7))
+        gs = matplotlib.gridspec.GridSpec(3, 1)
+        plt.subplot(gs.new_subplotspec((0, 0), colspan=1, rowspan=2))
+        plt.subplot(gs.new_subplotspec((2, 0), colspan=1, rowspan=1))
+        axs = f.axes    
+        # make sure the top 3 axes share the same x-axis
+        axs[0].get_shared_x_axes().join(axs[0],axs[1])
+    else:
+        f = plt.figure(figsize=(6.4*2,4.8))
+        gs = matplotlib.gridspec.GridSpec(1, 1)
+        plt.subplot(gs.new_subplotspec((0, 0), colspan=1, rowspan=2))
+        axs = f.axes
+    
     
     # Plot the first lvdt
-    l1, = plt.plot_date(lvdt_dat.index, lvdt_dat['eps'], '-k', label='LVDT strain', zorder=10)
+    l1, = axs[0].plot_date(lvdt_dat.index, lvdt_dat[lvdt_col], '-k', label='LVDT strain', zorder=10)
     
-    ax = plt.gca()
+    lt1, = axs[1].plot_date(pt100_dat.index, pt100_dat['T'], '-k', label='PT100 temp', zorder=10)
+    lt1a, = axs[1].plot_date(hobo_dat.index, hobo_dat['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
+    
+    #ax = plt.gca()
     
     for id, t in enumerate(t0_list):
-        l2 = ax.axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
-        ax.annotate('{0:.0f}'.format(steps[id]), xy=((tend_list[id]-t)/2.+t,1.03),
+        l2 = axs[0].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
+        lt2 = axs[1].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
+        
+        axs[0].annotate('{0:.0f}'.format(steps[id]), xy=((tend_list[id]-t)/2.+t,1.03),
                     xytext = ((tend_list[id]-t)/2.+t,1.03),
                     xycoords=('data', 'axes fraction'), textcoords=('data', 'axes fraction'),
                     arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth': 1}, zorder=-100, 
@@ -1278,30 +1320,34 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, history, sample_info):
                     )
     #for t in tend_list:
     #    l3 = ax.axvline(x=t, ls='--', color='0.65', zorder=-100, label='End of step')
-    ax.axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
+    axs[0].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
+    axs[1].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
     
     # invert the direction of both y-axes
-    ax.invert_yaxis()
+    axs[0].invert_yaxis()
 
     plt.suptitle('Name: {0},  Duration: {1:.1f} days'.format(sample_info['name'],
                                                           total_duration_h),
                  fontsize=14)
 
-    ax.set_ylabel('Strain [%]')
-
+    axs[0].set_ylabel('Strain [{0}]'.format(lvdt_unit))
     
-    ax.set_xlim([t0_list[0] - dt.timedelta(seconds=24*3600),
+    axs[0].set_xlim([t0_list[0] - dt.timedelta(seconds=24*3600),
                  tend_list[-1] + dt.timedelta(seconds=24*3600)])
         
-    ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
-    ax.grid(True)
+    axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    axs[0].grid(True)
 
-    min_lim = np.sort([lvdt_dat.loc[t0_list[0]]['eps'], lvdt_dat.loc[tend_list[-1]]['eps']])
+    min_lim = np.sort([lvdt_dat.loc[t0_list[0]][lvdt_col], lvdt_dat.loc[tend_list[-1]][lvdt_col]])
     min_lim[0] -= 1
     min_lim[1] += 1
     
-    ax.set_ylim([min_lim[1],min_lim[0]])
-#    print(min_lim)
+    axs[0].set_ylim([min_lim[1],min_lim[0]])
+
+    if plot_temp:
+        axs[1].set_ylabel('Temperature [C]')
+        axs[1].grid(True)
+        
     
     #ignore_spikes(ax, 1., min_lim=min_lim)
 #    min_ylim(axs[1], min_lims[1])
@@ -1310,7 +1356,7 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, history, sample_info):
     handles = [l1,l2]
     labels = [h.get_label() for h in handles]
 
-    l = ax.legend(handles, labels, loc='upper right', fontsize=10)
+    l = axs[0].legend(handles, labels, loc='upper right', fontsize=10)
     l.set_zorder(20)
     #f.tight_layout()
     
