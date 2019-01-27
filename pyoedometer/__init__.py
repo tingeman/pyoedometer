@@ -1211,11 +1211,17 @@ def get_key_index(lst, key, val):
 def plot_consolidation(df):
     f = plt.figure()
     
+    # find valid rows of the interpretation file:
+    thisdf = df.dropna(subset=['load'], how='any')                # remove any rows with no load specified
+    thisdf = thisdf.dropna(subset=['eps100','epsf'], how='all')   # remove rows where neither eps100 nor epsf is specified.
+
     if 'linestyle' in df.columns:
-        for id, row in df.iterrows():
+        # if linestyles are specified
+        # plot each segment with the specified line style
+        for id, row in thisdf.iterrows():
             if id < len(df)-1:
-                l1, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['epsf'], color='k', ls=row['linestyle'], lw=1)
-                l2, = plt.semilogx(df.iloc[id:id+2]['load'], df.iloc[id:id+2]['eps100'], color='b', ls=row['linestyle'], lw=1)
+                l1, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['epsf'], color='k', ls=row['linestyle'], lw=1)
+                l2, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['eps100'], color='b', ls=row['linestyle'], lw=1)
             
             if ('marker' in row):
                 if (isinstance(row['marker'], str)):
@@ -1231,12 +1237,13 @@ def plot_consolidation(df):
             except:
                 pass
                 
-            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['epsf'], color='k', ls='none', lw=1, marker=marker)
-            plt.semilogx(df.iloc[id]['load'], df.iloc[id]['eps100'], color='b', ls='none', lw=1, marker=marker)
+            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['epsf'], color='k', ls='none', lw=1, marker=marker)
+            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['eps100'], color='b', ls='none', lw=1, marker=marker)
         
     else:
-        l1, = plt.semilogx(df['load'], df['epsf'], '.-k', label=r'$\varepsilon_f$', lw=1)
-        l2, = plt.semilogx(df['load'], df['eps100'], '.-b', label=r'$\varepsilon_{100}$', lw=1)
+        # if linestyles are not specified, just plot default plot.
+        l1, = plt.semilogx(thisdf['load'], thisdf['epsf'], '.-k', label=r'$\varepsilon_f$', lw=1)
+        l2, = plt.semilogx(thisdf['load'], thisdf['eps100'], '.-b', label=r'$\varepsilon_{100}$', lw=1)
     
     ax = plt.gca()
     ax.invert_yaxis()
@@ -1244,7 +1251,7 @@ def plot_consolidation(df):
     ax.set_xlabel(r'Stress, $\sigma$ [kPa]')
     ax.set_ylabel(r'Strain, $\varepsilon$ [%]')
     
-    for id, row in df.iterrows():
+    for id, row in thisdf.iterrows():
         if row['annotate']:
             ax.annotate(row['txt'], xy=(row['load'], row['epsf']),
                         xytext = (row['load']+row['offset_x'], row['epsf']+row['offset_y']),
