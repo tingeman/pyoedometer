@@ -44,10 +44,11 @@ _ReSharper*/
 /old_code/
 /sample_*/
 /lab_results/
-
+/TIMEC/
 
 #project specific
 *.png
 *.h5
 *.xlsx
+*.zip
 
