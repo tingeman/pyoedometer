@@ -313,8 +313,8 @@ def read_config(fname):
             val['time2'] = dt.datetime.strptime(dat['history'][ix]['time2'], '%H:%M:%S').time()
             dat['history'][ix] = val
         except:
-            print('Problem with times in Step {0}'.format(val['step']))
-
+            print('Problem with times in history step {0}'.format(val['step']))
+            
     return dat
 
 
