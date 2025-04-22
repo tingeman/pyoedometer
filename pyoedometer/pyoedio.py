@@ -38,7 +38,7 @@ def create_dirs(dir_list):
             
 def save_step(config, sample_info, hist, lvdt_step=None, pt100_step=None, hobo_step=None):
     fname = '{0:02.0f}_{1}_{2:g}kPa_{3:g}C.xlsx'.format(hist['step'], 
-                                                        sample_info['name'].replace(' ','-'),
+                                                        sample_info['name'].replace(' ','_'),
                                                         hist['load'], hist['temp'])
     
     print('Saving: {0}'.format(fname))
@@ -361,13 +361,13 @@ def produce_latex_file(info):
         
         for hist in info['history']:
             ovname = '{0:02.0f}_{1}_raw_{2:g}kPa_{3:g}C.png'.format(hist['step'], 
-                                                                    info['sample']['name'].replace(' ','-'),
+                                                                    info['sample']['name'].replace(' ','_'),
                                                                     hist['load'], hist['temp'])
             ovname = posixpath.join('.', latex_info['figspath'], ovname)
             append_sideways_figure(f, ovname)
 
             tcname = '{0:02.0f}_{1}_timec_{2:g}kPa_{3:g}C.png'.format(hist['step'], 
-                                                                      info['sample']['name'].replace(' ','-'),
+                                                                      info['sample']['name'].replace(' ','_'),
                                                                       hist['load'], hist['temp'])
             tcname = posixpath.join('.', latex_info['figspath'], tcname)
             append_normal_figure(f, tcname)

@@ -468,7 +468,7 @@ if __name__ == '__main__':
     f = plt.figure(figsize=(15,5))
     t = np.logspace(-1,3,50)
     s = np.log10(t)
-    t2 = np.linspace(0, np.sqrt(1000), (np.sqrt(1000)-np.sqrt(0))*10)**2
+    t2 = np.linspace(0, np.sqrt(1000), int((np.sqrt(1000)-np.sqrt(0))*10))**2
     s2 = np.sqrt(t2)
     intersect = 0.33
 

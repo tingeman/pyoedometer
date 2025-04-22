@@ -1169,6 +1169,8 @@ def get_epsf(strain, conf=None, deltat=10):
     deltat = dt.timedelta(seconds=deltat*60)
     start_average = strain.index[-1]-deltat
     
+    print('epsf:  {0:.1f} sec   - {1:.1f} %'.format(deltat.seconds, strain[strain.index >= start_average]['eps'].mean()))
+    
     return strain[strain.index >= start_average]['eps'].mean()
 
     
@@ -1270,7 +1272,14 @@ def plot_consolidation(df):
 def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat, 
                        history, sample_info, 
                        plot_mV=False, plot_temp=False):
-
+    
+    if type(lvdt_dat) == pd.DataFrame:
+        lvdt_dat = [lvdt_dat]
+    if type(pt100_dat) == pd.DataFrame:
+        pt100_dat = [pt100_dat]
+    if type(hobo_dat) == pd.DataFrame:
+        hobo_dat = [hobo_dat]        
+    
     t0_list = [dt.datetime.combine(h['date'], h['time1']) for h in history]
     tend_list = [dt.datetime.combine(h['date2'], h['time2']) for h in history]
     
@@ -1307,15 +1316,14 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
         plt.subplot(gs.new_subplotspec((0, 0), colspan=1, rowspan=2))
         axs = f.axes
     
-    
-    # Plot the first lvdt
-    l1, = axs[0].plot_date(lvdt_dat.index, lvdt_dat[lvdt_col], '-k', label='LVDT strain', zorder=10)
+    for id in range(len(lvdt_dat)):
+        l1, = axs[0].plot_date(lvdt_dat[id].index, lvdt_dat[id][lvdt_col], '-k', label='LVDT strain', zorder=10)
     
     if plot_temp:
-        lt1, = axs[1].plot_date(pt100_dat.index, pt100_dat['T'], '-k', label='PT100 temp', zorder=10)
-        lt1a, = axs[1].plot_date(hobo_dat.index, hobo_dat['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
-    
-    #ax = plt.gca()
+        for id in range(len(pt100_dat)):
+            lt1, = axs[1].plot_date(pt100_dat[id].index, pt100_dat[id]['T'], '-k', label='PT100 temp', zorder=10)
+        for id in range(len(hobo_dat)):
+            lt1a, = axs[1].plot_date(hobo_dat[id].index, hobo_dat[id]['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
     
     for id, t in enumerate(t0_list):
         l2 = axs[0].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
@@ -1326,10 +1334,8 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
                     xytext = ((tend_list[id]-t)/2.+t,1.03),
                     xycoords=('data', 'axes fraction'), textcoords=('data', 'axes fraction'),
                     arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth': 1}, zorder=-100, 
-                    ha='center', va='center', size=9
-                    )
-    #for t in tend_list:
-    #    l3 = ax.axvline(x=t, ls='--', color='0.65', zorder=-100, label='End of step')
+                    ha='center', va='center', size=9)
+
     axs[0].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
     if plot_temp:
         axs[1].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
@@ -1349,8 +1355,18 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
     axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
     axs[0].grid(True)
 
-    min_lim = np.sort([lvdt_dat.loc[lvdt_dat.index>=t0_list[0]].iloc[0][lvdt_col], 
-                       lvdt_dat.loc[lvdt_dat.index<=tend_list[-1]].iloc[-1][lvdt_col]])
+    min_lim = np.sort([lvdt_dat[0].loc[lvdt_dat[0].index>=t0_list[0]].iloc[0][lvdt_col], 
+                       lvdt_dat[0].loc[lvdt_dat[0].index<=tend_list[-1]].iloc[-1][lvdt_col]])
+                       
+    if len(lvdt_dat)>1:
+        for id in range(len(lvdt_dat)-1):
+            min_lim2 = np.sort([lvdt_dat[id].loc[lvdt_dat[id].index>=t0_list[0]].iloc[0][lvdt_col], 
+                                lvdt_dat[id].loc[lvdt_dat[id].index<=tend_list[-1]].iloc[-1][lvdt_col]])
+            
+            min_lim[0] = min([min_lim[0], min_lim2[0]])
+            min_lim[1] = max([min_lim[1], min_lim2[1]])
+            
+   
     min_lim[0] -= 1
     min_lim[1] += 1
     
@@ -1362,7 +1378,7 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
         
     
     #ignore_spikes(ax, 1., min_lim=min_lim)
-#    min_ylim(axs[1], min_lims[1])
+    #min_ylim(axs[1], min_lims[1])
 
     # plot common legend for all subplots
     handles = [l1,l2]
