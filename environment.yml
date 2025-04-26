@@ -1,0 +1,16 @@
+# environment.yml
+name: pyoedometer_3p12
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  # any other conda deps you still need, e.g.:
+  # - numpy>=1.20
+  # - matplotlib>=3.5
+
+  - pip:
+    # build isn’t strictly needed for pip install ., but you can add it if you want:
+    - build
+    # editable install of your project via pyproject.toml
+    - -e .

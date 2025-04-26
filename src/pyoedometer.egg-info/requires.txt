@@ -1,0 +1,8 @@
+jinja2
+matplotlib
+numpy
+openpyxl
+pandas
+tables
+PyYAML
+PyQT5

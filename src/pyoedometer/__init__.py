@@ -301,7 +301,7 @@ def read_hobo_data(hobo_conf):
 def read_config(fname):
     with open(fname, 'r') as stream:
         try:
-            dat = yaml.load(stream)
+            dat = yaml.safe_load(stream)
             hist = dat['history']
         except yaml.YAMLError as exc:
             hist = []
@@ -395,30 +395,37 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
     hobo_labels = ['Isolated chamber', 'Frost chamber', 'Computer room'] 
     
     
-    f, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, sharex=False, sharey=False,
-                                           gridspec_kw={'height_ratios': [4, 4, 4, 1]},
-                                           figsize=(10, 12))
-
-    # make sure the top 3 axes share the same x-axis
-    ax1.get_shared_x_axes().join(ax1, ax2, ax3)
+    # Create subplots with shared x-axis for the first three axes
+    f, (ax1, ax2, ax3, ax4) = plt.subplots(
+        nrows=4, ncols=1, 
+        sharex=True,  # Share x-axis for the first three axes
+        sharey=False,
+        gridspec_kw={'height_ratios': [4, 4, 4, 1]},
+        figsize=(10, 12)
+    )
 
     # Plot the first lvdt
-    l1, = ax1.plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    l1, = ax1.plot(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    ax1.xaxis_date()
 
     # # Create a second y-axis and plot the second lvdt
     # ax1a = ax1.twinx()
-    # l2, = ax1a.plot_date(lvdt_step.index, lvdt_step['eps'], '-k', label='Strain', zorder=10)
+    # l2, = ax1a.plot(lvdt_step.index, lvdt_step['eps'], '-k', label='Strain', zorder=10)
+    # ax1a.xaxis_date()
 
     # invert the direction of both y-axes
     ax1.invert_yaxis()
 
-    l3, = ax2.plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    l3, = ax2.plot(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    ax2.xaxis_date()
     handles = [l1, l3]
     
     if len(hobo_step) > 0:
-        l5, = ax2.plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
-        l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
-        l7, = ax3.plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
+        l5, = ax2.plot(hobo_step.index, hobo_step['T(1)'], linestyle='-', c='g', marker=None, label=hobo_labels[0], zorder=2)
+        l6, = ax2.plot(hobo_step.index, hobo_step['T(2)'], linestyle='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
+        l7, = ax3.plot(hobo_step.index, hobo_step['T(3)'], linestyle='-', c='r', marker=None, label=hobo_labels[2])
+        ax2.xaxis_date()
+        ax3.xaxis_date()
         handles.extend([l5, l6, l7])
         #handles.extend([l7])
         
@@ -442,7 +449,8 @@ def plot_step_overview_hobo(lvdt_step, pt100_step, hobo_step, step_info):
 
     axes = [ax1, ax2, ax3]
     for ax in axes:
-        ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        #ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
         ax.grid(True)
     # f.tight_layout()
     # ax1.legend(zorder=0)
@@ -535,9 +543,9 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     hobo_step = add_minutes(hobo_step)
 
     if len(lvdt_step)>0:
-        end_minutes = lvdt_step['minutes'][-1]
+        end_minutes = lvdt_step['minutes'].iloc[-1]
     elif len(pt100_step)>0:
-        end_minutes = pt100_step['minutes'][-1]
+        end_minutes = pt100_step['minutes'].iloc[-1]
     else:
         end_minutes = 0
         
@@ -548,49 +556,77 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     #                                   'width_ratios':  [1, 3]},
     #                      figsize=(10, 12))
 
-    f = plt.figure(figsize=(15,9))
-    gs = matplotlib.gridspec.GridSpec(12, 4)
-    plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))      # axes for plot of beginning of step
-    plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))      # axes for plot of overview of strain
-    plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))      # axes for plot of overview frost room temperatures
-    plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))      # axes for plot of overview lab temperatures
-    plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))     # axes for legend
-    plt.subplot(gs.new_subplotspec((6, 0), colspan=1, rowspan=4))      # axes for plot of end of step
+    # f = plt.figure(figsize=(15,9))
+    # gs = matplotlib.gridspec.GridSpec(12, 4)
+    # plt.subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))      # axes for plot of beginning of step
+    # plt.subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))      # axes for plot of overview of strain
+    # plt.subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))      # axes for plot of overview frost room temperatures
+    # plt.subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))      # axes for plot of overview lab temperatures
+    # plt.subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))     # axes for legend
+    # plt.subplot(gs.new_subplotspec((6, 0), colspan=1, rowspan=4))      # axes for plot of end of step
     
-    axs = f.axes
+    # axs = f.axes
     
-    # make sure the top 3 axes share the same x-axis
-    axs[1].get_shared_x_axes().join(axs[1],axs[2], axs[3])
+    # # make sure the top 3 axes share the same x-axis
+    # axs[1].get_shared_x_axes().join(axs[1],axs[2], axs[3])
+
+
+    f = plt.figure(figsize=(15, 9))
+    gs = f.add_gridspec(12, 4)
+
+    # Create subplots with shared x-axis for axs[1], axs[2], and axs[3]
+    ax0 = f.add_subplot(gs.new_subplotspec((1, 0), colspan=1, rowspan=4))  # Plot of beginning of step
+    ax1 = f.add_subplot(gs.new_subplotspec((1, 1), colspan=3, rowspan=4))  # Overview of strain
+    ax2 = f.add_subplot(gs.new_subplotspec((5, 1), colspan=3, rowspan=3))  # Overview frost room temperatures
+    ax3 = f.add_subplot(gs.new_subplotspec((8, 1), colspan=3, rowspan=3))  # Overview lab temperatures
+    ax4 = f.add_subplot(gs.new_subplotspec((11, 1), colspan=3, rowspan=1))  # Legend
+    ax5 = f.add_subplot(gs.new_subplotspec((6, 0), colspan=1, rowspan=4))  # Plot of end of step
+
+    axs = [ax0, ax1, ax2, ax3, ax4, ax5]
+
+    # Automatically link the x-axis of axs[1], axs[2], and axs[3]
+    for ax in [axs[2], axs[3]]:
+        ax.sharex(axs[1])
+
+    # Optional: Hide x-axis labels for axs[1] and axs[2] to avoid overlapping
+    # axs[1].tick_params(labelbottom=False)
+    # axs[2].tick_params(labelbottom=False)
+
+    # Now axs[1], axs[2], and axs[3] share the same x-axis
+
     
     handles = []
     
     if len(lvdt_step) > 0:
         # Plot the first lvdt
-        l1, = axs[1].plot_date(lvdt_step.index, lvdt_step[lvdt_col], '-k', label='LVDT strain', zorder=10)
+        l1, = axs[1].plot(lvdt_step.index, lvdt_step[lvdt_col], '-k', label='LVDT strain', zorder=10)
+        axs[1].xaxis_date()
         handles.extend([l1])
         
         # plot start of time series
         #l, = axs[0].plot(lvdt_start['minutes'], lvdt_start[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-        l, = axs[0].plot_date(lvdt_start.index, lvdt_start[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-        
-        # plot end of time series
-        l, = axs[5].plot_date(lvdt_end.index, lvdt_end[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
-        
-        #axs[0].axvline(x=0, ls='--', color='0.65', zorder=-100)
-        axs[0].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-        axs[5].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-        
-        axs[1].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-        axs[2].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
-        axs[3].axvline(x=step_starttime, ls='--', color='0.65', zorder=-100)
+        l, = axs[0].plot(lvdt_start.index, lvdt_start[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        axs[0].xaxis_date()
 
-        axs[1].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-        axs[2].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
-        axs[3].axvline(x=step_endtime, ls='--', color='0.65', zorder=-100)
+        # plot end of time series
+        l, = axs[5].plot(lvdt_end.index, lvdt_end[lvdt_col], '-', c='0.3', lw=0.5, marker='.', ms=4, mec='k', mfc='k', zorder=10)
+        axs[5].xaxis_date()
+
+        #axs[0].axvline(x=0, linestyle='--', color='0.65', zorder=-100)
+        axs[0].axvline(x=step_starttime, linestyle='--', color='0.65', zorder=-100)
+        axs[5].axvline(x=step_endtime, linestyle='--', color='0.65', zorder=-100)
+        
+        axs[1].axvline(x=step_starttime, linestyle='--', color='0.65', zorder=-100)
+        axs[2].axvline(x=step_starttime, linestyle='--', color='0.65', zorder=-100)
+        axs[3].axvline(x=step_starttime, linestyle='--', color='0.65', zorder=-100)
+
+        axs[1].axvline(x=step_endtime, linestyle='--', color='0.65', zorder=-100)
+        axs[2].axvline(x=step_endtime, linestyle='--', color='0.65', zorder=-100)
+        axs[3].axvline(x=step_endtime, linestyle='--', color='0.65', zorder=-100)
         
         y0 = lvdt_step[lvdt_step['minutes']==0]['eps'].values[0]
-        axs[0].axhline(y=y0, ls='--', color='0.65', zorder=-100)
-        axs[1].axhline(y=y0, ls='--', color='0.65', zorder=-100)
+        axs[0].axhline(y=y0, linestyle='--', color='0.65', zorder=-100)
+        axs[1].axhline(y=y0, linestyle='--', color='0.65', zorder=-100)
         
         # invert the direction of both y-axes
         axs[1].invert_yaxis()
@@ -598,20 +634,26 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         axs[5].invert_yaxis()
 
     if len(pt100_step) > 0:
-        l3, = axs[2].plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+        l3, = axs[2].plot(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+        axs[2].xaxis_date()
         handles.extend([l3])
     
     if len(hobo_step) > 0:
-        l5, = axs[2].plot_date(hobo_step.index, hobo_step['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
-        #l6, = ax2.plot_date(hobo_step.index, hobo_step['T(2)'], ls='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
-        l7, = axs[3].plot_date(hobo_step.index, hobo_step['T(3)'], ls='-', c='r', marker=None, label=hobo_labels[2])
+        l5, = axs[2].plot(hobo_step.index, hobo_step['T(1)'], linestyle='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
+        #l6, = ax2.plot(hobo_step.index, hobo_step['T(2)'], linestyle='-', c='orange', marker=None, label=hobo_labels[1], zorder=1)
+        #ax2.xaxis_date()
+        l7, = axs[3].plot(hobo_step.index, hobo_step['T(3)'], linestyle='-', c='r', marker=None, label=hobo_labels[2])
         #handles.extend([l5, l6, l7])
+        axs[2].xaxis_date()
+        axs[3].xaxis_date()
         handles.extend([l5, l7])
     else:
         if len(lvdt_step)>0:
-            axs[3].plot_date(lvdt_step.index[0], lvdt_step[lvdt_col][0], '-', color='none', zorder=10)
+            axs[3].plot(lvdt_step.index[0], lvdt_step[lvdt_col][0], '-', color='none', zorder=10)
+            axs[3].xaxis_date()
         elif len(pt100_step)>0:
-            axs[3].plot_date(pt100_step.index[0], pt100_step['T'][0], '-', color='none', zorder=10)
+            axs[3].plot(pt100_step.index[0], pt100_step['T'][0], '-', color='none', zorder=10)
+            axs[3].xaxis_date()
         else:
             pass
         bbox_props = dict(boxstyle="square,pad=0.3", fc="none", ec="none")
@@ -648,13 +690,16 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         axes.append(axs[3])
         
     for ax in axes:
-        ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        #ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
         ax.grid(True)
 
-    axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    #axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
     plt.setp(axs[0].xaxis.get_majorticklabels(), rotation=45)   
     
-    axs[5].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    #axs[5].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    axs[5].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
     plt.setp(axs[5].xaxis.get_majorticklabels(), rotation=45)        
 
     bbox_props = dict(boxstyle="square,pad=0", fc="none", ec="none")
@@ -675,9 +720,9 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     #    pdb.set_trace()
     
     if len(lvdt_step)>0:
-        min_lim = np.sort([lvdt_step[lvdt_col][0], lvdt_step[lvdt_col][-1]])
+        min_lim = np.sort([lvdt_step[lvdt_col].iloc[0], lvdt_step[lvdt_col].iloc[-1]])
     elif len(pt100_step)>0:
-        min_lim = np.sort([pt100_step['T'][0], pt100_step['T'][-1]])
+        min_lim = np.sort([pt100_step['T'].iloc[0], pt100_step['T'].iloc[-1]])
     min_lim[0] -= 0.2
     min_lim[1] += 0.2
     
@@ -700,20 +745,34 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     
 def plot_step_overview(lvdt_step, pt100_step, hobo_step, step_info):
 
-    f, (ax1, ax2, ax4) = plt.subplots(nrows=3, ncols=1, sharex=False, sharey=False,
-                                           gridspec_kw={'height_ratios': [4, 4, 1]},
-                                           figsize=(10, 10))
+    # f, (ax1, ax2, ax4) = plt.subplots(nrows=3, ncols=1, sharex=False, sharey=False,
+    #                                        gridspec_kw={'height_ratios': [4, 4, 1]},
+    #                                        figsize=(10, 10))
 
-    # make sure the top 2 axes share the same x-axis
-    ax1.get_shared_x_axes().join(ax1, ax2)
+    # # Ensure axes are properly initialized before joining shared x-axes
+    # shared_axes = ax1.get_shared_x_axes()
+    # shared_axes.join(ax1, ax2)
+
+    f, (ax1, ax2, ax4) = plt.subplots(
+        nrows=3, ncols=1, 
+        sharey=False,
+        gridspec_kw={'height_ratios': [4, 4, 1]},
+        figsize=(10, 10)
+    )
+    
+    ax2.sharex(ax1)
+
+    # Now ax1 and ax2 automatically share the x-axis
 
     # Plot the first lvdt
-    l1, = ax1.plot_date(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    l1, = ax1.plot(lvdt_step.index, lvdt_step['strain'], '-k', label='LVDT strain', zorder=10)
+    ax1.xaxis_date()
 
     # invert the direction of the y-axes
     ax1.invert_yaxis()
 
-    l3, = ax2.plot_date(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    l3, = ax2.plot(pt100_step.index, pt100_step['T'], '-b', label='Sample temperature', zorder=10)
+    ax2.xaxis_date()
     handles = [l1, l3]
     
     # Plot figure title
@@ -734,7 +793,8 @@ def plot_step_overview(lvdt_step, pt100_step, hobo_step, step_info):
 
     axes = [ax1, ax2]
     for ax in axes:
-        ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        #ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
         ax.grid(True)
     # f.tight_layout()
     
@@ -773,14 +833,14 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
     handles = []
 
     if len(strain)>0:
-        l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='-', color='k', label='LVDT strain')
+        l, = ax1.plot(strain['minutes'][1:], strain['eps'][1:], linestyle='-', color='k', label='LVDT strain')
         handles.append(l)   
 
         if markers is not None:
             if isinstance(markers, bool) & markers:
-                ax1.plot(strain['minutes'][1:], strain['eps'][1:], ls='None', color='k', marker='.', ms=5)
+                ax1.plot(strain['minutes'][1:], strain['eps'][1:], linestyle='None', color='k', marker='.', ms=5)
             else:
-                ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], ls='None', color='k', marker='.', ms=5)
+                ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], linestyle='None', color='k', marker='.', ms=5)
        
     if intersect is None:
         ax1.set_xscale('log')
@@ -792,16 +852,16 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         #plt.gca().set_xlim([0, 2300])
         ax1.set_ylabel('Strain [%]')
         ax1.grid(True)
-        ax1.grid(b=True, which='minor', ls='--')
+        ax1.grid(visible=True, which='minor', linestyle='--')
 
         xlim = ax1.get_xlim()
         new_xlim = [xl for xl in xlim]
-        base = np.power(10, np.floor(np.log10(strain['minutes'][-1])))
-        new_xlim[1] = np.ceil(strain['minutes'][-1]/base)*base
+        base = np.power(10, np.floor(np.log10(strain['minutes'].iloc[-1])))
+        new_xlim[1] = np.ceil(strain['minutes'].iloc[-1]/base)*base
         ax1.set_xlim(new_xlim)
         ax1.invert_yaxis()
         
-        min_lim = np.sort([strain['eps'][0], strain['eps'][-1]])
+        min_lim = np.sort([strain['eps'].iloc[0], strain['eps'].iloc[-1]])
         min_lim[0] -= 0.1
         min_lim[1] += 0.1
         ignore_spikes(ax1, 0.2, min_lim=min_lim)
@@ -821,7 +881,7 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         
         ax2.set_ylabel('Temperature [C]')
         ax2.grid(True)
-        ax2.grid(b=True, which='minor', ls='--')
+        ax2.grid(visible=True, which='minor', linestyle='--')
         
         min_ylim(ax2, 0.4)
         
@@ -830,7 +890,8 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         ax2.set_xlim(ax1.get_xlim())
         
         # make sure the axes share the same x-axis
-        ax1.get_shared_x_axes().join(ax1, ax2)
+        #ax1.get_shared_x_axes().join(ax1, ax2)
+        ax2.sharex(ax1)
     
     if hobo is not None:
         if intersect is None:
@@ -846,7 +907,7 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         
         ax3.set_ylabel('Temperature [C]')
         ax3.grid(True)
-        ax3.grid(b=True, which='minor', ls='--')
+        ax3.grid(visible=True, which='minor', linestyle='--')
         
         min_ylim(ax3, 2)
         
@@ -855,7 +916,9 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         ax3.set_xlim(ax1.get_xlim())
         
         # make sure the axes share the same x-axis
-        ax1.get_shared_x_axes().join(ax1, ax2, ax3)
+        #ax1.get_shared_x_axes().join(ax1, ax2, ax3)
+        ax2.sharex(ax1)
+        ax3.sharex(ax1)
     
     if hobo is not None:
         ax3.set_xlabel('Time (min)')
@@ -900,7 +963,7 @@ def add_minutes(ts, t0=None):
     
     
 
-def plot_fit_line(a, b, ax, num=10, ls='--r', type='linear', intersect=None):
+def plot_fit_line(a, b, ax, num=10, linestyle='--', color='r', type='linear', intersect=None):
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
 
@@ -1042,8 +1105,8 @@ def basic_interpretation(strain, interpret, history, params=None):
     
     if len(strain)>0:
         # strain in mm and % at beginning of step
-        params['delta_n-1'] = strain['strain'][0]
-        params['eps_n-1'] = strain['strain'][0]
+        params['delta_n-1'] = strain['strain'].iloc[0]
+        params['eps_n-1'] = strain['strain'].iloc[0]
         
         # strain in mm and % at end of step
         if 'epsf' in interpret:
@@ -1222,8 +1285,8 @@ def plot_consolidation(df):
         # plot each segment with the specified line style
         for id, row in thisdf.iterrows():
             if id < len(df)-1:
-                l1, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['epsf'], color='k', ls=row['linestyle'], lw=1)
-                l2, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['eps100'], color='b', ls=row['linestyle'], lw=1)
+                l1, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['epsf'], color='k', linestyle=row['linestyle'], lw=1)
+                l2, = plt.semilogx(thisdf.iloc[id:id+2]['load'], thisdf.iloc[id:id+2]['eps100'], color='b', linestyle=row['linestyle'], lw=1)
             
             if ('marker' in row):
                 if (isinstance(row['marker'], str)):
@@ -1239,8 +1302,8 @@ def plot_consolidation(df):
             except:
                 pass
                 
-            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['epsf'], color='k', ls='none', lw=1, marker=marker)
-            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['eps100'], color='b', ls='none', lw=1, marker=marker)
+            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['epsf'], color='k', linestyle='none', lw=1, marker=marker)
+            plt.semilogx(thisdf.iloc[id]['load'], thisdf.iloc[id]['eps100'], color='b', linestyle='none', lw=1, marker=marker)
         
     else:
         # if linestyles are not specified, just plot default plot.
@@ -1309,7 +1372,8 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
         plt.subplot(gs.new_subplotspec((2, 0), colspan=1, rowspan=1))
         axs = f.axes    
         # make sure the top 3 axes share the same x-axis
-        axs[0].get_shared_x_axes().join(axs[0],axs[1])
+        #axs[0].get_shared_x_axes().join(axs[0],axs[1])
+        axs[1].sharex(axs[0])
     else:
         f = plt.figure(figsize=(6.4*2,4.8))
         gs = matplotlib.gridspec.GridSpec(1, 1)
@@ -1317,18 +1381,21 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
         axs = f.axes
     
     for id in range(len(lvdt_dat)):
-        l1, = axs[0].plot_date(lvdt_dat[id].index, lvdt_dat[id][lvdt_col], '-k', label='LVDT strain', zorder=10)
+        l1, = axs[0].plot(lvdt_dat[id].index, lvdt_dat[id][lvdt_col], '-k', label='LVDT strain', zorder=10)
+        axs[0].xaxis_date()
     
     if plot_temp:
         for id in range(len(pt100_dat)):
-            lt1, = axs[1].plot_date(pt100_dat[id].index, pt100_dat[id]['T'], '-k', label='PT100 temp', zorder=10)
+            lt1, = axs[1].plot(pt100_dat[id].index, pt100_dat[id]['T'], '-k', label='PT100 temp', zorder=10)
+            axs[1].xaxis_date()
         for id in range(len(hobo_dat)):
-            lt1a, = axs[1].plot_date(hobo_dat[id].index, hobo_dat[id]['T(1)'], ls='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
+            lt1a, = axs[1].plot(hobo_dat[id].index, hobo_dat[id]['T(1)'], linestyle='-', c='orange', marker=None, label=hobo_labels[0], zorder=2)
+            axs[1].xaxis_date()
     
     for id, t in enumerate(t0_list):
-        l2 = axs[0].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
+        l2 = axs[0].axvline(x=t, linestyle='--', color='0.65', zorder=+10, label='Step designation')
         if plot_temp:
-            lt2 = axs[1].axvline(x=t, ls='--', color='0.65', zorder=+10, label='Step designation')
+            lt2 = axs[1].axvline(x=t, linestyle='--', color='0.65', zorder=+10, label='Step designation')
         
         axs[0].annotate('{0:.0f}'.format(steps[id]), xy=((tend_list[id]-t)/2.+t,1.03),
                     xytext = ((tend_list[id]-t)/2.+t,1.03),
@@ -1336,9 +1403,9 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
                     arrowprops={'arrowstyle': '-', 'color':'none', 'linewidth': 1}, zorder=-100, 
                     ha='center', va='center', size=9)
 
-    axs[0].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
+    axs[0].axvline(x=tend_list[-1], linestyle='--', color='0.65', zorder=-100)
     if plot_temp:
-        axs[1].axvline(x=tend_list[-1], ls='--', color='0.65', zorder=-100)
+        axs[1].axvline(x=tend_list[-1], linestyle='--', color='0.65', zorder=-100)
     
     # invert the direction of both y-axes
     axs[0].invert_yaxis()
@@ -1352,7 +1419,8 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
     axs[0].set_xlim([t0_list[0] - dt.timedelta(seconds=24*3600),
                  tend_list[-1] + dt.timedelta(seconds=24*3600)])
         
-    axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    #axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
+    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
     axs[0].grid(True)
 
     min_lim = np.sort([lvdt_dat[0].loc[lvdt_dat[0].index>=t0_list[0]].iloc[0][lvdt_col], 

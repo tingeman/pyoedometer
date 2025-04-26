@@ -43,26 +43,24 @@ def save_step(config, sample_info, hist, lvdt_step=None, pt100_step=None, hobo_s
     
     print('Saving: {0}'.format(fname))
     
-    writer = pd.ExcelWriter(os.path.join(config['savedatapath'],fname))
+    with pd.ExcelWriter(os.path.join(config['savedatapath'],fname)) as writer:
     
-    row = 0
-    for d in [sample_info, hist]:
-        df = pd.DataFrame.from_dict(d, orient='index')
-        df.to_excel(writer, sheet_name='info', header=False, startrow=row)
-        row += len(df)+2
-    
-    if lvdt_step is not None:
-        lvdt_step.to_excel(writer, sheet_name='LVDT_data')
+        row = 0
+        for d in [sample_info, hist]:
+            df = pd.DataFrame.from_dict(d, orient='index')
+            df.to_excel(writer, sheet_name='info', header=False, startrow=row)
+            row += len(df)+2
         
-    if pt100_step is not None:
-        pt100_step.to_excel(writer, sheet_name='sample_temperature')
-    
-    if hobo_step is not None:
-        hobo_step.to_excel(writer, sheet_name='room_temperatures')
-    
-    writer.save()
-
-    
+        if lvdt_step is not None:
+            lvdt_step.to_excel(writer, sheet_name='LVDT_data')
+            
+        if pt100_step is not None:
+            pt100_step.to_excel(writer, sheet_name='sample_temperature')
+        
+        if hobo_step is not None:
+            hobo_step.to_excel(writer, sheet_name='room_temperatures')
+   
+   
             
 def append_sideways_figure(file, figfilepath, caption=None, label=None, loc='[htp]'):
     """
@@ -74,12 +72,12 @@ def append_sideways_figure(file, figfilepath, caption=None, label=None, loc='[ht
     txt = swfig
     
     if caption is not None:
-        cap = '\n\caption{{{0}}}'.format(caption)
+        cap = '\n\\caption{{{0}}}'.format(caption)
     else:
         cap = ''
     
     if label is not None:
-        lab = '\n\label{{fig:{0}}}'.format(label)
+        lab = '\n\\label{{fig:{0}}}'.format(label)
     else:
         lab = ''
     
@@ -96,12 +94,12 @@ def append_normal_figure(file, figfilepath, caption=None, label=None,loc='[htp]'
     txt = normalfig
     
     if caption is not None:
-        cap = '\n\caption{{{0}}}'.format(caption)
+        cap = '\n\\caption{{{0}}}'.format(caption)
     else:
         cap = ''
     
     if label is not None:
-        lab = '\n\label{{fig:{0}}}'.format(label)
+        lab = '\n\\label{{fig:{0}}}'.format(label)
     else:
         lab = ''
         
@@ -150,7 +148,7 @@ def append_section_heading(file, secname, label=None, indent=0):
     if label is None:
         file.write('{0}\\section{{{1}}}\n\n'.format( ' '*indent,secname))
     else:
-        file.write('{0}\\section{{{1}}}\label{{{2}}}\n\n'.format( ' '*indent,secname,label))
+        file.write('{0}\\section{{{1}}}\\label{{{2}}}\n\n'.format( ' '*indent,secname,label))
     
 
 def append_newpage(file):
@@ -158,9 +156,9 @@ def append_newpage(file):
 
     
 def append_chapter_title(file, title, label=None):
-    txt = '\chapter{{{0}}}'.format(title)
+    txt = '\\chapter{{{0}}}'.format(title)
     if label is not None:
-        txt += '\label{{{0}}}'.format(label)
+        txt += '\\label{{{0}}}'.format(label)
     
     file.write(txt+'\n\n')
     
@@ -212,7 +210,7 @@ def produce_latex_file(info):
         append_section_heading(f, 'Overview of load steps and interpreted results')
         
         if os.path.exists(latex_info['interpretation_file']):
-            results = pd.read_excel(latex_info['interpretation_file'], sheetname='results')
+            results = pd.read_excel(latex_info['interpretation_file'], sheet_name='results')
             
             def fixed(x, sig=3):
                 txt = '{{0:.{0:d}f'.format(sig) + '}'
@@ -265,25 +263,33 @@ def produce_latex_file(info):
             # Since we are using siunitx to typeset the columns, 
             # non-numerical cell contents must be braced...
             headers = ['{Step}', 
-                       '{$\\sigma$ [\si{kPa}]}', 
-                       '{$T$ [\si{\celsius}]}',
-                       '{$\\varepsilon_{0}$ [\%]}',
-                       '{$\\varepsilon_{50}$ [\%]}',
-                       '{$\\varepsilon_{100}$ [\%]}',
-                       '{$\\varepsilon_{f}$ [\%]}',
-                       '{$C_{\\alpha}$ [\%/lct]}',
-                       '{$c_v$ [\si{m^2/s}]}',
-                       '{$K$ [\si{kPa}]}',
-                       '{$k_0$ [\si{m/s}]}']                       
+                       '{$\\sigma$ [\\si{kPa}]}', 
+                       '{$T$ [\\si{\\celsius}]}',
+                       '{$\\varepsilon_{0}$ [\\%]}',
+                       '{$\\varepsilon_{50}$ [\\%]}',
+                       '{$\\varepsilon_{100}$ [\\%]}',
+                       '{$\\varepsilon_{f}$ [\\%]}',
+                       '{$C_{\\alpha}$ [\\%/lct]}',
+                       '{$c_v$ [\\si{m^2/s}]}',
+                       '{$K$ [\\si{kPa}]}',
+                       '{$k_0$ [\\si{m/s}]}']                       
 
                        
             heads = [headers[id] for id, col in enumerate(columns) if col in df.columns]
                         
-            append_table(f, df, centering=True, sideways=True, loc='[H]', columns=cols, header=heads, 
-                        na_rep='', index=False, escape=False, formatters=formatters,
-                        column_format='c'*len(heads))
+            # append_table(f, df, centering=True, sideways=True, loc='[H]', columns=cols, header=heads, 
+            #             na_rep='', index=False, escape=False, formatters=formatters,
+            #             column_format='c'*len(heads))
 
+            # escape Python‐format braces so Styler.to_latex() leaves them alone
+            escaped_heads = [h.replace('{','{{').replace('}','}}') for h in heads]
             
+            append_table(f, df, centering=True, sideways=True, loc='[H]',
+                        columns=cols, header=escaped_heads,
+                        na_rep='', index=False, escape=False,
+                        formatters=formatters,
+                        column_format='c'*len(escaped_heads))
+
             
 #            columns = ['step',
 #                       'load',

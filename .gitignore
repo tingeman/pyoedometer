@@ -41,10 +41,8 @@ _ReSharper*/
 # IDE specific
 .idea/
 
-/old_code/
-/sample_*/
-/lab_results/
-/TIMEC/
+# Exclude backup and old files in this folder
+/exclude/
 
 #project specific
 *.png

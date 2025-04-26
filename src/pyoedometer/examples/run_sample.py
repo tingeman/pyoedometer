@@ -44,13 +44,14 @@ steps_to_interpret = [d['step'] for d in interpret]
 steps_to_plot = [d['step'] for d in history]
 
 #steps_to_overview = [] # range(26,37,1) # []
-steps_to_overview = [15,16,17,18,19,20,21,22,23]
-#steps_to_overview = [d['step'] for d in history]    
+#steps_to_overview = [15,16,17,18,19,20,21,22,23]
+steps_to_overview = [d['step'] for d in history]    
 
 #steps_to_save = []
-#steps_to_save = [d['step'] for d in history]
+steps_to_save = [d['step'] for d in history]
 
 plot_full_timeseries = True
+plot_full_timeseries_temp = True
 close_figs_after_save = False
 
 
@@ -178,27 +179,46 @@ if len(steps_to_interpret) > 0:
     order.extend([col for col in columns if col not in order])
     columns = [col for col in order if col in columns]
 
-    writer = pd.ExcelWriter(os.path.join(config['datapath'],'interpretation.xlsx'))
-    params.to_excel(writer, columns=columns, sheet_name='results')
+    with pd.ExcelWriter(os.path.join(config['datapath'],'interpretation.xlsx')) as writer:
+        params.to_excel(writer, columns=columns, sheet_name='results')
 
-    txt = []
-    for id, row in params.iterrows():
-        txt.append('T={0:.1f}C'.format(row['temp']))
-    
-    params['annotate'] = 1        
-    params['txt'] = txt
-    params['offset_x'] = 0
-    params['offset_y'] = 0
-    
-    columns = ['load', 'temp', 'eps100', 'epsf', 'epss', 'annotate', 'txt', 'offset_x', 'offset_y']
-    params.to_excel(writer, columns=columns, sheet_name='plotting')
-    writer.save()
+        txt = []
+        for id, row in params.iterrows():
+            txt.append('T={0:.1f}C'.format(row['temp']))
+        
+        params['annotate'] = 1        
+        params['txt'] = txt
+        params['offset_x'] = 0
+        params['offset_y'] = 0
+        
+        columns = ['load', 'temp', 'eps100', 'epsf', 'epss', 'annotate', 'txt', 'offset_x', 'offset_y']
+        #params.to_excel(writer, columns=columns, sheet_name='plotting')
+
+        # only write the columns that actually exist
+        existing = [c for c in columns if c in params.columns]
+        missing = set(columns) - set(existing)
+        if missing:
+            # optional: warn the user which columns were skipped
+            print(f"Warning: skipping missing plotting columns: {sorted(missing)}")
+        params.to_excel(writer, columns=existing, sheet_name='plotting')
+
 
 # ---------------------------------------------------------------
 # Plot consolidation curve
 # ---------------------------------------------------------------    
 if plot_full_timeseries:    
-    f = pyoedometer.plot_full_overview(lvdt_dat, pt100T, hoboT, history, sample_info)    
+    f = pyoedometer.plot_full_overview(lvdt_dat, pt100T, hoboT, history, sample_info, plot_temp=plot_full_timeseries_temp)
+
+    if os.path.exists(latex_info['interpretation_file']):
+        params = pd.read_excel(latex_info['interpretation_file'], sheet_name='plotting')
+        
+        if plot_full_timeseries_temp:
+            Tyl = [np.floor(params['temp'].min()-1), np.ceil(params['temp'].max()+1)]
+            f.axes[1].set_ylim(Tyl)
+        
+            Eyl = [np.ceil(params['epsf'].max()+1), np.floor(params['epsf'].min()-1)]
+            f.axes[0].set_ylim(Eyl)
+    
     f.savefig(os.path.join(config['savefigpath'], 'lvdt_strain_full.png'), dpi=200,
               bbox_inches='tight')
     if close_figs_after_save:
@@ -209,12 +229,19 @@ if plot_full_timeseries:
 # ---------------------------------------------------------------    
 
 if os.path.exists(latex_info['interpretation_file']):
-    params = pd.read_excel(latex_info['interpretation_file'], sheetname='plotting')
+    params = pd.read_excel(latex_info['interpretation_file'], sheet_name='plotting')
     
     f = plot_consolidation(params)
-
+    
     f.savefig(os.path.join(config['savefigpath'], 'consolidation_curve.png'), 
-              dpi=200, bbox_inches = 'tight')
+          dpi=300, bbox_inches = 'tight')
+          
+    yl = f.axes[0].get_ylim()
+    f.axes[0].set_ylim([17.5, yl[1]])
+    
+    f.savefig(os.path.join(config['savefigpath'], 'consolidation_curve_yl.png'), 
+              dpi=300, bbox_inches = 'tight')
+              
     if close_figs_after_save:
         plt.close(f)
 

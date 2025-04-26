@@ -10,8 +10,18 @@ from matplotlib.transforms import Transform, IdentityTransform, nonsingular
 from matplotlib.ticker import (NullFormatter, ScalarFormatter,
                                LogFormatterSciNotation, LogitFormatter)
 from matplotlib.ticker import (NullLocator, LogLocator, AutoLocator,
-                               SymmetricalLogLocator, LogitLocator, Locator,
-                               is_decade, decade_up, decade_down)
+                               SymmetricalLogLocator, LogitLocator, Locator)
+
+try:
+    from matplotlib.ticker import is_decade, decade_up, decade_down
+except ImportError:
+    from matplotlib.ticker import (
+        _is_decade as is_decade,
+        _decade_greater as decade_up,
+        _decade_less   as decade_down
+    )
+
+
 import logging
 
 import six
