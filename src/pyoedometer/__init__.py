@@ -140,7 +140,7 @@ def sqrt_sampling(a, num=20):
     indices to these values.
     
     Typical use-case is to reduce a regularly (linearly) sampled dataset to 
-    logarithmic spacing for visualization purposes.
+    square root spacing for visualization purposes.
     
     Parameters
     ----------
