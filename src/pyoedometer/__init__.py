@@ -7,6 +7,9 @@ import matplotlib
 from matplotlib import pyplot as plt
 from . import sqrtlogscale
 import pdb    
+
+__version__ = '0.1.0'
+
 #
 ## Sample info
 #sample_1_h0 = 20.50  # mm

@@ -70,7 +70,7 @@ pip install .
 
 ## Quick Verification
 
-After installation, open a Python REPL and try:
+After installation, open a Python interpreter and try:
 
 ```python
 >>> import pyoedometer
