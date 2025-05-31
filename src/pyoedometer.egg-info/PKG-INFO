@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: pyoedometer
+Version: 0.1.0
+Summary: Package to interpret and plot oedometer tests
+Author-email: Thomas Ingeman-Nielsen <tin@dtu.dk>
+License: GPL-3.0-or-later
+Keywords: oedometer test
+Classifier: Development Status :: 3 - Alpha
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: jinja2
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: openpyxl
+Requires-Dist: pandas
+Requires-Dist: tables
+Requires-Dist: PyYAML
+Requires-Dist: PyQT5
