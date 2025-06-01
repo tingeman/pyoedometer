@@ -78,14 +78,14 @@ To interpret oedometer (consolidation) test data using the sqrt-time method (as 
    In some cases, hobo data consists of multiple files. The code should read and process all hobo csv files in the dedicated directory, then save the combined time series to a `hobo_data.hdf` file (which is subsequently used in processing, if it exists).
 
 2. **Prepare your configuration:**  
-   Edit the `sample_config.yml` file to specify your test data files, sample properties, and analysis parameters. This YAML file controls all input to the module.
+   Edit the `config_sample.yml` file to specify your test data files, sample properties, and analysis parameters. This YAML file controls all input to the module.
 
 3. **Run the analysis:**  
    Use the command line to execute the `run_sample.py` script. For example:
    ```bash
    python run_sample.py
    ```
-   The script will read the `./sample_data/sample_config.yml` file and process the data accordingly. 
+   The script will read the `./sample_data/config_sample.yml` file and process the data accordingly. 
 
    It will do basic processing for all steps (including establishing eps0 and epsf for each step), then do detailed processing of steps specified in the `config_sample.yml` file.
    
@@ -101,23 +101,23 @@ To interpret oedometer (consolidation) test data using the sqrt-time method (as 
 4. **Review the output:**  
    Results (such as interpreted parameters and plots) will be saved to the locations defined in your config file.
 
-For more details on the configuration options, see the comments in `sample_config.yml` and the code.
+For more details on the configuration options, see the comments in `config_sample.yml` and the code.
 
 ### General workflow
 
-In general, the processing workflow consists of iteratively updating the `sample_config.yml` file and running the `run_sample.py` script to produce output. Processing steps are changed to work on certain elements, until an acceptable result is obtained.
+In general, the processing workflow consists of iteratively updating the `config_sample.yml` file and running the `run_sample.py` script to produce output. Processing steps are changed to work on certain elements, until an acceptable result is obtained.
 
 Often it is most convenient to work with a single time step at a time, adjusting settings so that only that particular step is processed and plotted.
 
 1. **Define the experiment setup**
-   Modify the `sample_config.yml` configuration section, to provide appropriate paths to files, and define lvdt and temperature measurements.
+   Modify the `config_sample.yml` configuration section, to provide appropriate paths to files, and define lvdt and temperature measurements.
    ***NB: Do not reuse calibration factors from previous experiments, unless you know what sensors they refer to or otherwise know what you are doing.***
 
 2. **Define the experiment history**
-   Setup `sample_config.yml` history section with approximate date and times for each load step start and end.
+   Setup `config_sample.yml` history section with approximate date and times for each load step start and end.
 
 3. **Adjust for exact step start and end times**
-   Use the step overview plots (use zoom functionality) to find exact start and end times and update the `sample_config.yml` file accordingly. 
+   Use the step overview plots (use zoom functionality) to find exact start and end times and update the `config_sample.yml` file accordingly. 
    
    The step start time should be set so that the first point encountered at or after the start time is lower than `eps0`
 
@@ -148,7 +148,7 @@ Often it is most convenient to work with a single time step at a time, adjusting
    When all steps have been successfully interpreted/processed,
    rename the final `interpretation.xlsx` file to e.g. `interpretation_final.xlsx`.
 
-   Update the `sample_config.yml` `paths` `interpretation_file` setting to point to this file.
+   Update the `config_sample.yml` `paths` `interpretation_file` setting to point to this file.
 
    Open the excel file, navigate to the `plotting` sheet, and modify annotation settings in this sheet to adjust how the consolidation curve is plotted (e.g. which steps to annotate, and how to off set labels on the plot).
 
