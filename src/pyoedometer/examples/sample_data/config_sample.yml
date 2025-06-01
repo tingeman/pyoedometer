@@ -21,12 +21,12 @@ paths:
     savefigpath: 'tex/figs_SIS2024_M7_S12'
     savedatapath: 'sample_data/data'
     savelatexpath: 'tex'
+    interpretation_file: 'sample_data/interpretation.xlsx'
 
 latex:
     produce_latex_file: True
     figspath: 'figs_SIS2024_M7_S12'
     filename: 'tex/sample_SIS2024_M7_S12 (1).tex'
-    interpretation_file: 'sample_data/interpretation.xlsx'
 
 lvdt:
     # LVDT dataset provides the timeseries of the strain of the sample, and is
@@ -60,7 +60,7 @@ hobo:
     # The calibration coefficients are used to adjust for any offsets in the temperature measurements2,
     # and should be obtained from a calibration of the HOBO sensors.
     # If no calibration is available, the coefficients can be set to [1., 0.]
-    datapath: 'sample_data/hobo'
+    datapath: 'sample_data'
     # file_extension: 'txt'    # optional, if the files have a different extension than .hdf or .csv
     # separator: ';'           # optional, if the files are text files with a different separator than ','
     deltatime: 0      # [seconds] adjust time difference with LVDT and PT100 data

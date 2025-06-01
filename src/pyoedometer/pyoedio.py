@@ -208,8 +208,8 @@ def produce_latex_file(info):
         
         append_section_heading(f, 'Overview of load steps and interpreted results')
         
-        if os.path.exists(latex_info['interpretation_file']):
-            results = pd.read_excel(latex_info['interpretation_file'], sheet_name='results')
+        if os.path.exists(info['paths']['interpretation_file']):
+            results = pd.read_excel(info['paths']['interpretation_file'], sheet_name='results')
             
             def fixed(x, sig=3):
                 txt = '{{0:.{0:d}f'.format(sig) + '}'
