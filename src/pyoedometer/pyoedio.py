@@ -164,10 +164,9 @@ def append_chapter_title(file, title, label=None):
     
     
 def produce_latex_file(info):
-    config = info['config']
     sample_info = info['sample']
     history = info['history']
-    interpret = info['interpret']
+    # interpret = info['interpret']
     latex_info = info['latex']
 
     if not latex_info['produce_latex_file']:
