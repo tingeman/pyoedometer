@@ -1,0 +1,170 @@
+sample:
+    name: 'SIS2024_M7_S12 (2)'
+    nickname: 'sample M7S12(2)'
+    depth: '3.20-3.38 m'
+    h0: 19.80      # [mm]
+
+processing:
+    # Specify which steps to process, provide lists of step numbers
+    steps_to_interpret: [22]          # 'all', 'none', or list of step numbers (e.g. [22, 23, 24])
+    steps_to_plot_timecurve:  [22]    # 'all', 'none', or list of step numbers (e.g. [22, 23, 24])
+    steps_to_plot_overview: [22]      # 'all', 'none', or list of step numbers (e.g. [22, 23, 24])
+    steps_to_save: [22]               # 'all', 'none', or list of step numbers (e.g. [22, 23, 24])
+    
+    # Flags to controll other processing options
+    plot_full_timeseries: False                     # If True, plot the full time series of the LVDT data
+    plot_temperature_with_full_timeseries: False    # If True, add temperature data to the full time series plot
+    close_figs_after_saving: False                  # If True, close figures after saving them to file
+
+paths:
+    datapath: 'sample_data'
+    savefigpath: 'tex/figs_SIS2024_M7_S12'
+    savedatapath: 'sample_data/data'
+    savelatexpath: 'tex'
+    interpretation_file: 'sample_data/interpretation.xlsx'
+
+latex:
+    produce_latex_file: True
+    figspath: 'figs_SIS2024_M7_S12'
+    filename: 'tex/sample_SIS2024_M7_S12 (1).tex'
+
+lvdt:
+    # LVDT dataset provides the timeseries of the strain of the sample, and is
+    # usually provided as a voltage signal.
+    # The calibration coefficients are used to convert the voltage signal [V] to strain [mm].
+    filename: 'sample_data/CR6-4750_LVDT_table_M7_12.dat'
+    h0:  0.378439   # [mm]    
+    channel: 4
+    calibration:
+        type: 'invlinear'          #  x_true = (x_obs - b) / a
+        coeff: [47.905, -1002.90]  # [a, b] coefficients for the inverse linear calibration
+        negate: True               # multiply all values by -1 (after calibration)
+
+pt100:
+    # PT100 dataset provides the timeseries of the temperature of the sample,
+    # typically measured immediately below the lower filterstone in the sample holder.
+    # Data are provided as a resistance signal [Ohm].
+    # The Callendar-Van Dusen equation is used to convert the resistance signal to temperature [C].
+    # The calibration coefficients are used to adjust for any offsets in the resulting temperature
+    # time series, and should be obtained from a calibration of the PT100 sensor.
+    # If no calibration is available, the coefficients can be set to [1., 0.]
+    filename: 'sample_data/CR6-4750_PT100_table_M7_12.dat'
+    channel: 0
+    calibration:
+        type: 'linear'             #  x_true = a * x_obs + b
+        coeff: [1.000320692, 0.]   # [a, b] coefficients for the linear calibration
+
+hobo:
+    # HOBO dataset provides the timeseries of the temperature of the cold room and laboratory.
+    # Data are optional, and provided as a Temperature signal [C].
+    # The calibration coefficients are used to adjust for any offsets in the temperature measurements2,
+    # and should be obtained from a calibration of the HOBO sensors.
+    # If no calibration is available, the coefficients can be set to [1., 0.]
+    datapath: 'sample_data'
+    # file_extension: 'txt'    # optional, if the files have a different extension than .hdf or .csv
+    # separator: ';'           # optional, if the files are text files with a different separator than ','
+    deltatime: 0      # [seconds] adjust time difference with LVDT and PT100 data
+    config:
+    - {channel: 0,
+       label: 'Isolated Chamber',
+       calibration: {type: 'linear', coeff: [1., -0.02]}}
+    - {channel: 1,
+       label: 'Frost chamber',
+       calibration: {type: 'linear', coeff: [1., -0.02]}}
+    - {channel: 2,
+       label: 'Computer room',
+       calibration: {type: 'linear', coeff: [1., 0.00]}}
+
+history:
+# The history of the sample is a list of steps, each with a load, nominal sample temperature, 
+# start and end date and time, and an optional comment used to identify load steps or provide
+# information about incidents during the experiment. 
+- {step: 1, load: 1.5, temp: -10.0, date: 2025-04-21, time1: '15:00:10', date2: 2025-04-21, time2: '15:04:03', comment: 'Start of test'}
+- {step: 2, load: 10.0, temp: -10.0, date: 2025-04-21, time1: '15:04:03', date2: 2025-04-21, time2: '15:12:11', comment: ''}
+- {step: 3, load: 20.0, temp: -10.0, date: 2025-04-21, time1: '15:12:11', date2: 2025-04-21, time2: '15:25:05', comment: ''}
+- {step: 4, load: 50.0, temp: -10.0, date: 2025-04-21, time1: '15:25:05', date2: 2025-04-21, time2: '15:47:45', comment: ''}
+- {step: 5, load: 120.0, temp: -10.0, date: 2025-04-21, time1: '15:47:45', date2: 2025-04-21, time2: '16:00:54', comment: ''}
+- {step: 6, load: 300.0, temp: -10.0, date: 2025-04-21, time1: '16:00:54', date2: 2025-04-21, time2: '16:23:43', comment: ''}
+- {step: 7, load: 600.0, temp: -10.0, date: 2025-04-21, time1: '16:23:43', date2: 2025-04-23, time2: '09:30:30', comment: 'End of loading'}
+- {step: 8, load: 600.0, temp: -9.0, date: 2025-04-23, time1: '09:30:30', date2: 2025-04-24, time2: '16:30:30', comment: 'Start of thawing'}
+- {step: 9, load: 600.0, temp: -8.0, date: 2025-04-24, time1: '16:30:30', date2: 2025-04-30, time2: '08:30:30', comment: ''}
+- {step: 10, load: 600.0, temp: -7.0, date: 2025-04-30, time1: '08:30:30', date2: 2025-05-01, time2: '14:40:30', comment: ''}
+- {step: 11, load: 600.0, temp: -6.0, date: 2025-05-01, time1: '14:40:30', date2: 2025-05-05, time2: '09:30:30', comment: ''}
+- {step: 12, load: 600.0, temp: -5.0, date: 2025-05-05, time1: '09:30:30', date2: 2025-05-06, time2: '09:30:30', comment: ''}
+- {step: 13, load: 600.0, temp: -4.0, date: 2025-05-06, time1: '09:30:30', date2: 2025-05-07, time2: '09:30:30', comment: ''}
+- {step: 14, load: 600.0, temp: -3.0, date: 2025-05-07, time1: '09:30:30', date2: 2025-05-08, time2: '11:00:00', comment: ''}
+- {step: 15, load: 600.0, temp: -2.0, date: 2025-05-08, time1: '11:00:00', date2: 2025-05-09, time2: '18:30:30', comment: ''}
+- {step: 16, load: 600.0, temp: -1.0, date: 2025-05-09, time1: '18:30:30', date2: 2025-05-10, time2: '19:30:30', comment: ''}
+- {step: 17, load: 600.0, temp: 0.5, date: 2025-05-10, time1: '19:30:30', date2: 2025-05-12, time2: '19:30:30', comment: ''}
+- {step: 18, load: 600.0, temp: 0.5, date: 2025-05-12, time1: '19:30:30', date2: 2025-05-14, time2: '12:42:30', comment: ''}
+- {step: 19, load: 600.0, temp: 20.0, date: 2025-05-14, time1: '12:42:30', date2: 2025-05-15, time2: '15:14:21', comment: 'End of thawing'}
+- {step: 20, load: 120.0, temp: 20.0, date: 2025-05-15, time1: '15:14:21', date2: 2025-05-17, time2: '10:44:33', comment: 'Unloading'}
+- {step: 21, load: 10.0, temp: 20.0, date: 2025-05-17, time1: '10:44:33', date2: 2025-05-18, time2: '16:38:48', comment: ''}
+- {step: 22, load: 120.0, temp: 20.0, date: 2025-05-18, time1: '16:39:14.9', date2: 2025-05-19, time2: '18:39:15', comment: 'Reloading'}
+- {step: 23, load: 300.0, temp: 20.0, date: 2025-05-19, time1: '18:39:15', date2: 2025-05-21, time2: '10:49:45', comment: ''}
+- {step: 24, load: 600.0, temp: 20.0, date: 2025-05-21, time1: '10:49:45', date2: 2025-05-22, time2: '11:12:12', comment: ''}
+- {step: 25, load: 1200.0, temp: 20.0, date: 2025-05-22, time1: '11:12:32', date2: 2025-05-23, time2: '16:12:04', comment: ''}
+- {step: 26, load: 2400.0, temp: 20.0, date: 2025-05-23, time1: '16:12:04', date2: 2025-05-24, time2: '13:33:57', comment: ''}
+- {step: 27, load: 1200.0, temp: 20.0, date: 2025-05-24, time1: '13:33:57', date2: 2025-05-24, time2: '21:08:06', comment: 'Final unloading'}
+- {step: 28, load: 1.5, temp: 20.0, date: 2025-05-24, time1: '21:08:06', date2: 2025-05-25, time2: '13:30:00', comment: 'End of test'}
+
+interpret:
+# Provides parameters for the interpretation of each time step.
+# `epsf`: how to calculate the final strain [%] from the LVDT data
+#         `dt`: [min] use the last `dt` minutes of strain data to calculate the mean final strain
+# `temp`: how to calculate the temperature of the sample in this time step
+#         `t0`: [min] start time for averaging sample temperature
+#         `t1`: [min] end time for averaging sample temperature
+#         For load steps, `t0` and `t1` are typically set to 0 and -1, meaning the entire timeseries is used.
+#         For thawing steps, `t0` is typically adjusted to only use the last hours of the thawing period.
+# `timec`: how to interpret the time curve for this step
+#         `t1`: [min] start time for interpreting primary consolidation
+#         `t2`: [min] end time for interpreting primary consolidation
+#         `t3`: [min] start time for interpreting secondary consolidation (creep)
+#         `t4`: [min] end time for interpreting secondary consolidation (creep)
+#         `type`: interpretation method, can be 'iso_sqrt' or 'bh' (Brinch Hansen)
+- {step:  1, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  2, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  3, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  4, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  5, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  6, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  7, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  8, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step:  9, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 10, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 11, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 12, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 13, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 14, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 15, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 16, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 17, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 18, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 19, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 20, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 21, epsf: {dt: 10}, temp: {t0: 0, t1: -1}} 
+- {step: 22, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.016, t2: 0.03, t3: 600, t4: 1000, type: 'iso_sqrt', intersect: 10.}}
+#- {step: 22, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.3, t2: 1.5, t3: 10, t4: 600,     type: 'bh', intersect: 1.}}
+- {step: 23, epsf: {dt: 10}, temp: {t0: 0, t1: -1}} #timec: {t1: 1, t2: 2, t3: 10, t4: 100,     type: 'iso_sqrt', intersect: 1.}} 
+- {step: 24, epsf: {dt: 10}, temp: {t0: 0, t1: -1}} #timec: {t1: 1, t2: 2, t3: 10, t4: 100,     type: 'iso_sqrt', intersect: 1.}} 
+- {step: 25, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.01, t2: 0.05, t3: 200, t4: 1000,     type: 'iso_sqrt', intersect: 1.}} 
+- {step: 26, epsf: {dt: 10}, temp: {t0: 0, t1: -1}} 
+- {step: 27, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+- {step: 28, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 29, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 30, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 31, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 32, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 33, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 34, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 35, epsf: {dt: 10}, temp: {t0: 0, t1: -1}}
+#- {step: 24, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.01, t2: 0.1, t3: 0.6, t4: 4,    type: 'bh', intersect: 1.}}
+#- {step: 25, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.01, t2: 0.1, t3: 2,   t4: 1000, type: 'bh', intersect: 1.}}
+#- {step: 26, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.01, t2: 0.1, t3: 2,   t4: 1000, type: 'ist', intersect: 1.}}
+#- {step: 27, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.01, t2: 0.1, t3: 2,   t4: 1000, type: 'iso_sqrt', intersect: 1.}}
+#- {step: 27, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.5, t2: 1, t3: 2,   t4: 1000, type: 'iso_sqrt', intersect: 1.}}
+#- {step: 27, epsf: {dt: 10}, temp: {t0: 0, t1: -1}, timec: {t1: 0.1, t2: 0.3, t3: 2,   t4: 1000, type: 'iso_sqrt', intersect: 1.}}
+
+
+    

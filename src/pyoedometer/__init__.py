@@ -6,10 +6,13 @@ import yaml
 import matplotlib
 from matplotlib import pyplot as plt
 from . import sqrtlogscale
-import pdb    
 
-__version__ = '0.1.0'
+try:
+    import ipdb as pdb
+except ImportError:
+    import pdb
 
+from scipy.optimize import fsolve
 #
 ## Sample info
 #sample_1_h0 = 20.50  # mm
@@ -143,7 +146,7 @@ def sqrt_sampling(a, num=20):
     indices to these values.
     
     Typical use-case is to reduce a regularly (linearly) sampled dataset to 
-    square root spacing for visualization purposes.
+    logarithmic spacing for visualization purposes.
     
     Parameters
     ----------
@@ -171,8 +174,11 @@ def read_lvdt_data(lvdt_info, sample_info):
     fname =       lvdt_info['filename']
     channel =     lvdt_info['channel']
     calibration = lvdt_info['calibration']
-    lvdt_h0 =     lvdt_info['h0']
-    sample_h0 =   sample_info['h0']
+    lvdt_h0 =     lvdt_info['h0']            # This is the LVDT raw displacement at zero load
+                                             # i.e. LVDT voltage converted to displacement at start of the experiment
+                                             # It is the value of lvdt_dat['raw_strain'] at the start of the experiment
+    
+    sample_h0 =   sample_info['h0']          # This is the physical height of the sample at zero load
 
     # Read LVDT data
     lvdt_dat = pd.read_csv(fname, sep=None, skiprows=4,
@@ -280,6 +286,7 @@ def read_hobo_data(hobo_conf):
                 print(index[id])
                 # utc_list.extend([utc_offset_dt for i in xrange(len(df))])
 
+
         # apply the timezone offset
         # index = np.array(index) + np.array(utc_list)
 
@@ -312,8 +319,14 @@ def read_config(fname):
 
     for ix,val in enumerate(dat['history']):
         try:
-            val['time1'] = dt.datetime.strptime(dat['history'][ix]['time1'], '%H:%M:%S').time()
-            val['time2'] = dt.datetime.strptime(dat['history'][ix]['time2'], '%H:%M:%S').time()
+            try:
+                val['time1'] = dt.datetime.strptime(dat['history'][ix]['time1'], '%H:%M:%S.%f').time()
+            except ValueError:
+                val['time1'] = dt.datetime.strptime(dat['history'][ix]['time1'], '%H:%M:%S').time()
+            try:
+                val['time2'] = dt.datetime.strptime(dat['history'][ix]['time2'], '%H:%M:%S.%f').time()
+            except ValueError:
+                val['time2'] = dt.datetime.strptime(dat['history'][ix]['time2'], '%H:%M:%S').time()
             dat['history'][ix] = val
         except:
             print('Problem with times in history step {0}'.format(val['step']))
@@ -592,8 +605,8 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         ax.sharex(axs[1])
 
     # Optional: Hide x-axis labels for axs[1] and axs[2] to avoid overlapping
-    # axs[1].tick_params(labelbottom=False)
-    # axs[2].tick_params(labelbottom=False)
+    axs[1].tick_params(labelbottom=False)
+    axs[2].tick_params(labelbottom=False)
 
     # Now axs[1], axs[2], and axs[3] share the same x-axis
 
@@ -652,10 +665,10 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         handles.extend([l5, l7])
     else:
         if len(lvdt_step)>0:
-            axs[3].plot(lvdt_step.index[0], lvdt_step[lvdt_col][0], '-', color='none', zorder=10)
+            axs[3].plot(lvdt_step.index[0], lvdt_step[lvdt_col].iloc[0], '-', color='none', zorder=10)
             axs[3].xaxis_date()
         elif len(pt100_step)>0:
-            axs[3].plot(pt100_step.index[0], pt100_step['T'][0], '-', color='none', zorder=10)
+            axs[3].plot(pt100_step.index[0], pt100_step['T'].iloc[0], '-', color='none', zorder=10)
             axs[3].xaxis_date()
         else:
             pass
@@ -688,21 +701,21 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     axs[4].axis('off')
     axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1), ncol=4, fontsize=10)
     
-    axes = [axs[1], axs[2]]
-    if len(hobo_step) > 0:
-        axes.append(axs[3])
+    axes = [axs[1], axs[2], axs[3]]
+    # if len(hobo_step) > 0:
+    #     axes.append(axs[3])
         
     for ax in axes:
         #ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
-        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+        ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
         ax.grid(True)
 
     #axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
-    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
     plt.setp(axs[0].xaxis.get_majorticklabels(), rotation=45)   
     
     #axs[5].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
-    axs[5].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    axs[5].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
     plt.setp(axs[5].xaxis.get_majorticklabels(), rotation=45)        
 
     bbox_props = dict(boxstyle="square,pad=0", fc="none", ec="none")
@@ -726,6 +739,7 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
         min_lim = np.sort([lvdt_step[lvdt_col].iloc[0], lvdt_step[lvdt_col].iloc[-1]])
     elif len(pt100_step)>0:
         min_lim = np.sort([pt100_step['T'].iloc[0], pt100_step['T'].iloc[-1]])
+     
     min_lim[0] -= 0.2
     min_lim[1] += 0.2
     
@@ -739,7 +753,11 @@ def plot_step_overview_hobo2(lvdt_dat, pt100_dat, hobo_dat, step_info, plot_mV=F
     
     min_ylim(axs[5], min_lims[4])  
     
-    f.tight_layout()
+    # suppress any warnings about tight layout
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        f.tight_layout()
     
     return f    
     
@@ -803,7 +821,50 @@ def plot_step_overview(lvdt_step, pt100_step, hobo_step, step_info):
     
     return f
     
+def plot_simple_sqrt_time_curve_fit(times, values, sqrt_vals=None, sqrt115_vals=None):
+    """
+    Plots a simple time curve with a square root time scale on the x-axis.
     
+    Parameters
+    ----------
+    times : array-like
+        The time values to plot.
+    values : array-like
+        The corresponding values to plot against the times.
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object containing the plot.
+    """
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    ax.plot(times, values, linestyle='-', marker='.', color='k', label='Data')
+    
+    if sqrt_vals is not None:
+        ax.plot(times, sqrt_vals, linestyle='--', color='b', label='fit sqrt(t)')
+    if sqrt115_vals is not None:
+        ax.plot(times, sqrt115_vals, linestyle='--', color='r', label='fit sqrt(t)*1.15')
+
+    ax.set_xscale('sqrtlog', intersectx=1)
+
+    # invert the y-axis
+    ax.invert_yaxis()
+
+    #ax.set_xlim([0, times[-1]])
+    ax.set_ylim([np.ceil(values.max()), np.floor(values.min())])
+    ax.legend(loc='upper left', fontsize=12)
+
+    ax.set_xlabel('Time (sqrt scale)')
+    ax.set_ylabel('Values')
+    
+    ax.grid(True)
+    
+    return fig
+
+
+
     
 def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, markers=False):
     step_starttime = dt.datetime.combine(step_info['date'], step_info['time1'])
@@ -845,7 +906,7 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
             else:
                 ax1.plot(strain['minutes'][1:markers], strain['eps'][1:markers], linestyle='None', color='k', marker='.', ms=5)
        
-    if intersect is None:
+    if intersect is None or np.isnan(intersect):
         ax1.set_xscale('log')
     else:
         ax1.set_xscale('sqrtlog', intersectx=intersect)
@@ -871,7 +932,7 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         min_ylim(ax1, 0.1)
         
     if temp is not None:       
-        if intersect is None:
+        if intersect is None or np.isnan(intersect):
             ax2.set_xscale('log')
             if temp.loc[temp.index[0],'minutes'] <= 0:
                 temp.loc[temp.index[0],'minutes'] = ax1.get_xlim()[0]
@@ -897,7 +958,7 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
         ax2.sharex(ax1)
     
     if hobo is not None:
-        if intersect is None:
+        if intersect is None or np.isnan(intersect):
             ax3.set_xscale('log')
             if hobo['minutes'].iloc[0] <= 0:
                 hobo['minutes'].iloc[0] = ax1.get_xlim()[0]
@@ -951,22 +1012,24 @@ def plot_time_curve(strain, step_info, temp=None, hobo=None, intersect=1, marker
     
     return f, ax1
     
-def add_minutes(ts, t0=None):
+def add_minutes(ts, t0=None, force=False):
     """Adds timestamp in minutes with the first sample as zero minutes"""
-#    if not 'minutes' in ts.columns:
-    if len(ts) > 0:
-        if t0 is None:
-            new_col = (ts.index-ts.index[0]).days*24*60 + (ts.index-ts.index[0]).seconds/60.
+    if not 'minutes' in ts.columns or force:
+        if len(ts) > 0:
+            if t0 is None:
+                new_col = (ts.index-ts.index[0]).days*24*60 + (ts.index-ts.index[0]).seconds/60.
+            else:
+                new_col = (ts.index-t0).days*24*60 + (ts.index-t0).seconds/60.
         else:
-            new_col = (ts.index-t0).days*24*60 + (ts.index-t0).seconds/60.
+            new_col = None
+        
+        return ts.assign(minutes=new_col)
     else:
-        new_col = None
+        return ts
     
-    return ts.assign(minutes=new_col)
-    
-    
+   
 
-def plot_fit_line(a, b, ax, num=10, linestyle='--', color='r', type='linear', intersect=None):
+def plot_fit_line(a, b, ax, num=10, ls='--', color='r', type='linear', intersect=None):
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
 
@@ -977,8 +1040,15 @@ def plot_fit_line(a, b, ax, num=10, linestyle='--', color='r', type='linear', in
     elif type == 'linear':
         func = lambda x: x    # Do nothing
 
-        
-    t0 = func(xlim[0])
+
+    if type == 'log10':
+        if intersect is not None:
+            t0 = func(intersect*0.9)
+        elif xlim[0] <= 0:
+            t0 = -6  # Avoid log10(0) which is -inf
+    else:
+        t0 = func(xlim[0])
+
     tmax = func(xlim[1])
 
     if type == 'sqrt':
@@ -1007,6 +1077,20 @@ def plot_fit_line(a, b, ax, num=10, linestyle='--', color='r', type='linear', in
     
 
 def fit_line(times, values, t1, t2, use_points='endpoints', type='linear'):
+    """Fit a line to the data in `values`.
+    The line is fitted between the two times `t1` and `t2` in the `times` array.
+    The `use_points` parameter determines how the points are selected:
+    - 'endpoints': use the values at the times closest to `t1` and `t2`.""
+    - 'subsample': not implemented yet, but would use a subsample of points between `t1` and `t2` return
+                     the best fitting line.
+
+    The `type` parameter determines the type of fit:
+    - 'sqrt': fit a line to the square root of the values.
+    - 'log10': fit a line to the logarithm of the values.
+    - 'linear': fit a line to the values without transformation.
+
+    Returns the slope and intercept of the fitted line.    
+    """
     
     if type == 'sqrt':
         func = np.sqrt
@@ -1061,8 +1145,69 @@ def intersect_lines(p1, p2, p3, p4):
     y = ((p2[0]*p1[1]-p1[0]*p2[1])*(p4[1]-p3[1]) - (p4[0]*p3[1]-p3[0]*p4[1])*(p2[1]-p1[1])) / ((p2[0]-p1[0])*(p4[1]-p3[1]) - (p4[0]-p3[0])*(p2[1]-p1[1]))
     return (x, y)    
     
-    
+
 def interpret_BrinchHansen(times, values, h0, t1, t2, t3, t4):    
+    """Provide a deprecation warning for this function."""
+    import warnings
+    warnings.warn("The function interpret_BrinchHansen is deprecated and will be removed in a future version. "
+                  "Use interpretation_BrinchHansen instead.", DeprecationWarning)
+    return interpretation_BrinchHansen(times, values, h0, t1, t2, t3, t4)
+
+def basic_interpretation(strain, interpret, history, params=None):
+    """Provide a deprecation warning for this function."""
+    import warnings
+    warnings.warn("The function basic_interpretation is deprecated and will be removed in a future version. "
+                  "Use interpretation_basic instead.", DeprecationWarning)
+    return interpretation_basic(strain, interpret, history, params=params)
+
+def interpret_iso17892_5(times, values, interpret, history, params=None):
+    """Provide a deprecation warning for this function."""
+    import warnings
+    warnings.warn("The function interpret_iso17892_5 is deprecated and will be removed in a future version. "
+                  "Use interpretation_iso17892_5 instead.", DeprecationWarning)
+    return interpretation_iso17892_5(times, values, interpret, history, params=params)
+
+def interpret_k0(params):
+    """Provide a deprecation warning for this function."""
+    import warnings
+    warnings.warn("The function interpret_k0 is deprecated and will be removed in a future version. "
+                  "Use calculate_k0 instead.", DeprecationWarning)
+    return calculate_k0(params)
+
+
+def interpretation_basic(strain, interpret, history, params=None):
+    """Extract basic information for a particular load step.
+    
+    """
+    if params is None:
+        params = {}
+    
+    step = interpret['step']    # get the step number as defined in `history` section of config file
+    step_id = get_key_index(history, 'step', step)   # get the index of the step in the history list
+    
+    # Get the load applied in the previous step
+    if step_id == 0:
+        params['sig_n-1'] = 0    # If this is the first step, there is no previous load
+    else:
+        params['sig_n-1'] = history[step_id-1]['load']
+        
+    # Get the load applied in the current step
+    params['sig_n'] = history[step_id]['load']
+    
+    if len(strain)>0:
+        # strain in mm and % at end of step
+        if 'epsf' in interpret:
+            params['delta_n'] = get_strainf(strain, interpret['epsf'])
+            params['epsf'] = get_epsf(strain, interpret['epsf'])
+        else:
+            params['delta_n'] = get_strainf(strain)
+            params['epsf'] = get_epsf(strain)
+
+    return params
+
+
+
+def interpretation_BrinchHansen(times, values, h0, t1, t2, t3, t4):    
     params = {}
     sqrt_a, sqrt_b = fit_line(times, values, t1, t2, use_points='endpoints', type='sqrt')
     log_a, log_b = fit_line(times, values, t3, t4, use_points='endpoints', type='log10')
@@ -1089,49 +1234,45 @@ def interpret_BrinchHansen(times, values, h0, t1, t2, t3, t4):
     
     return params
     
-def basic_interpretation(strain, interpret, history, params=None):
-    if params is None:
-        params = {}
+   
+def interpretation_iso17892_5(times, values, interpret, history, params=None):
+    """Interpret the consolidation test data according to ISO 17892-5.
+    This function calculates the parameters required for the consolidation test interpretation.
+    The parameters are returned in the `params` dictionary.
     
-    step = interpret['step']
-    
-    step_id = get_key_index(history, 'step', step)
-    
-    # Get load of previous step
-    if step_id == 0:
-        params['sig_n-1'] = 0
-    else:
-        params['sig_n-1'] = history[step_id-1]['load']
-        
-    # Get load of current step
-    params['sig_n'] = history[step_id]['load']
-    
-    if len(strain)>0:
-        # strain in mm and % at beginning of step
-        params['delta_n-1'] = strain['strain'].iloc[0]
-        params['eps_n-1'] = strain['strain'].iloc[0]
-        
-        # strain in mm and % at end of step
-        if 'epsf' in interpret:
-            params['delta_n'] = get_strainf(strain, interpret['epsf'])
-            params['epsf'] = get_epsf(strain, interpret['epsf'])
-        else:
-            params['delta_n'] = get_strainf(strain)
-            params['epsf'] = get_epsf(strain)
+    According to ISO 17892-5, a line is fitted in sqrt(time) space to the linear part of the
+    consolidation curve (primary consolidation). We then generate a second line, which at all times 
+    is 1.15 times the value of the first line. The intersection of this second line with the 
+    consolidation curve gives the time and strain at 90% consolidation.
+    From this, the time and strain at 50% and 100% consolidation can be calculated.
 
-    return params
+    Then, a line is fitted in log10(time) space to the creep part of the consolidation curve.
+    The parameters of the fitted lines are returned in the `params` dictionary. 
+
+
+    Parameters
+    ----------  
+    times : array-like
+        The time values of the consolidation test in minutes.
+    values : array-like
+        The strain values of the consolidation test in percent.
+    interpret : dict
+        A dictionary containing interpretation parameters, such as 'timec' with keys 't1', 't2', 't3', and 't4'.
+        't1' and 't2' determines the time interval over which a line is fitted to primary consolidation in sqrt(time) space
+        't3' and 't4' are used to fit a line to the creep in log10(time) space.
+    history : list    
+        A list of dictionaries containing the history of the consolidation test, including 'step' and 'load'.
+    params : dict, optional
+        A dictionary to store the calculated parameters. If not provided, a new dictionary is created.
     
-def interpret_k0(params):
-    gamma_w = 10 #  kN/m3
-    if 'Cv' in params:
-        params['K'] = (params['sig_n']-params['sig_n-1'])/((params['eps100']-params['eps0'])/100)
-        params['k0'] = params['Cv']*gamma_w/params['K']
-        #h_n_1 = (params['h0']-params['delta_n-1'])/1000
-        #params['k0'] = (h_n_1*params['delta_n-1']/1000 - (params['delta_n-1']/1000)**2) * gamma_w / (2*params['t50']*60*(params['sig_n']-params['sig_n-1']))
-    return params
-    
-def interpret_iso17892_5(times, values, interpret, history, params=None):
-    
+    Returns
+    -------     
+    params : dict
+        A dictionary containing the calculated parameters for the consolidation test interpretation.
+        The keys include 'sqrt_a', 'sqrt_b', 'eps0', 't90', 'eps90', 'eps100', 'delta100', 'eps50', 'delta50',
+        't50', 't100', 'L', 'Cv', 'epss', 'log_a', and 'log_b'.
+
+    """
     if params is None:
         params = {}
     
@@ -1146,35 +1287,108 @@ def interpret_iso17892_5(times, values, interpret, history, params=None):
     t4 = timec_info.get('t4', None)
     
     if (t1 is not None) & (t2 is not None):
-        sqrt_a, sqrt_b = fit_line(times, values, t1, t2, use_points='endpoints', type='sqrt')
-        sqrt115_vals = sqrt_a * np.sqrt(times)/1.15 + sqrt_b
-        idx = sign_changes(sqrt115_vals-values).nonzero()[0]
-        (x, y) = intersect_lines((np.sqrt(times[idx[-1]-1]), values[idx[-1]-1]),
-                                 (np.sqrt(times[idx[-1]]), values[idx[-1]]),
-                                 (np.sqrt(times[idx[-1]-1]), sqrt115_vals[idx[-1]-1]),
-                                 (np.sqrt(times[idx[-1]]), sqrt115_vals[idx[-1]]))
+        # Fit a line in sqrt(time) space to the primary consolidation part of the curve
+        # The line is fitted between the two times t1 and t2
+        
+        # Iteratively adjust the zero-time of the time step, to obtain a fit that intersects 
+        # sqrt(t)=0 at the eps_0 value.
+        
+        if params['eps0'] > values[0]:
+            import warnings
+            warnings.warn("The initial value of the consolidation curve is larger than the specified eps0 value. "
+                          "Using the first value of the consolidation curve as eps0 instead.",
+                          UserWarning)
+            params['eps0'] = values[0]  # Use the first value of the consolidation curve as eps0 if it is larger than the initial value
+
+        convergence_threshold = 10000  # maximum number of iterations to converge
+        convergence_tolerance = 0.0001  # tolerance for convergence
+        n = 0
+        delta_time = 0   # inital value for the time shift
+        sqrt_b = None
+
+
+        # While sqrt_b is None and sqrt_b is not close to the eps_0 value, make another iteration
+        while sqrt_b is None or n<convergence_threshold:
+            # Fit the line in sqrt(time) space
+            sqrt_a, sqrt_b = fit_line(times - delta_time, values, t1-delta_time, t2-delta_time, use_points='endpoints', type='sqrt')
+            
+            # If the fitted line does not intersect sqrt(t)=0 at the eps_0 value, adjust the time shift
+            if not np.isclose(sqrt_b, params['eps0'], atol=convergence_tolerance):
+                # Adjust the time shift based on the difference between the fitted intercept and eps_0
+                delta_time += ((params['eps0'] - sqrt_b) / sqrt_a) ** 2  
+            else:
+                break  # If the fit is close enough, break the loop
+
+            n += 1
+            
+        if n >= convergence_threshold:
+            import warnings
+            warnings.warn(f"The fitting of the primary consolidation line did not converge after {convergence_threshold} iterations. "
+                          "The results may not be accurate.", UserWarning)
+            # Uncomment the next line to debug the issue
+            pdb.set_trace()
+        else:
+            print(f"Fitting primary consolidation in sqrt(t) space converged after {n} iterations with delta_time={delta_time:.4f} minutes.")
+
+        # sqrt_a, sqrt_b = fit_line(times, values, t1, t2, use_points='endpoints', type='sqrt')
+        
+        # sqrt_a and sqrt_b are the slope and intercept of the fitted line in sqrt(time) space
+
+        times = times - delta_time  # Adjust the times with the calculated time shift
+        
+        # Calculate the values of the line that is 1.15 times the fitted line at all times
+        
+        # find indices of the times that are >= 0
+        valid_indices = np.where(times >= 0)[0]
+        valid_times = times[valid_indices]
+        valid_values = values[valid_indices]
+        sqrt_vals = (sqrt_a * np.sqrt(valid_times) + sqrt_b)
+        sqrt115_vals = (sqrt_a * np.sqrt(valid_times)/1.15 + sqrt_b)
+
+        # For debugging purposes, plot the fitted line and the 1.15 times line        
+        # plot_simple_sqrt_time_curve_fit(valid_times, valid_values, sqrt_vals=sqrt_vals, sqrt115_vals=sqrt115_vals)
+
+        idx = sign_changes(sqrt115_vals-valid_values).nonzero()[0]
+        (x, y) = intersect_lines((np.sqrt(valid_times[idx[-1]-1]), valid_values[idx[-1]-1]),
+                                 (np.sqrt(valid_times[idx[-1]]), valid_values[idx[-1]]),
+                                 (np.sqrt(valid_times[idx[-1]-1]), sqrt115_vals[idx[-1]-1]),
+                                 (np.sqrt(valid_times[idx[-1]]), sqrt115_vals[idx[-1]]))
     
         params['sqrt_a'] = sqrt_a
         params['sqrt_b'] = sqrt_b
-        params['eps0'] = sqrt_b
+        # params['eps0'] = sqrt_b
+        params['dt_eps0'] = delta_time
         params['t90'] = x**2
         params['eps90'] = y
         params['eps100'] = (params['eps90']- params['eps0'])/0.9+params['eps0']
         params['delta100'] = params['eps100']*params['h0']/100
         params['eps50'] =  (params['eps100']+params['eps0'])/2.
         params['delta50'] = params['eps50']*params['h0']/100
-    
+        
+        # prepare placeholders for additional parameters
+        params['t50'] = None
+        params['t100'] = None
+        params['L'] = None
+        params['Cv'] = None
+        params['epss'] = None
+        params['log_a'] = None
+        params['log_b'] = None
+
 #    x = (y-y1)*(x2-x1)/(y2-y1)+x1    
         idx = sign_changes(values-params['eps50']).nonzero()[0]
-        params['t50'] = ((params['eps50']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
+        if len(idx) > 0:
+            params['t50'] = ((params['eps50']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
         
         idx = sign_changes(values-params['eps100']).nonzero()[0]
-        params['t100'] = ((params['eps100']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
+        if len(idx) > 0:
+            params['t100'] = ((params['eps100']-values[idx[0]-1])*(np.sqrt(times[idx[0]])-np.sqrt(times[idx[0]-1]))/(values[idx[0]]-values[idx[0]-1]) + np.sqrt(times[idx[0]-1]))**2.
         
-        params['L'] = params['h0']/2*(1-params['eps50']/100)    # Sample height at 50% consolidtation
-        Cv = 0.848 * (params['L']/1000)**2 / (params['t90']*60)
         
-        params['Cv'] = Cv
+        if params['t50'] is not None:
+            params['L'] = params['h0']/2*(1-params['eps50']/100)    # Sample height at 50% consolidtation
+        
+        if params['t90'] is not None:
+            params['Cv'] = 0.848 * (params['L']/1000)**2 / (params['t90']*60)
 
     if (t3 is not None) & (t4 is not None):        
         log_a, log_b = fit_line(times, values, t3, t4, use_points='endpoints', type='log10')
@@ -1185,7 +1399,18 @@ def interpret_iso17892_5(times, values, interpret, history, params=None):
    
     return params
     
-    
+
+def calculate_k0(params):
+    gamma_w = 10 #  kN/m3
+    if 'Cv' in params and params['Cv'] is not None:
+        params['K'] = (params['sig_n']-params['sig_n-1'])/((params['eps100']-params['eps0'])/100)
+        params['k0'] = params['Cv']*gamma_w/params['K']
+        #h_n_1 = (params['h0']-params['delta_n-1'])/1000
+        #params['k0'] = (h_n_1*params['delta_n-1']/1000 - (params['delta_n-1']/1000)**2) * gamma_w / (2*params['t50']*60*(params['sig_n']-params['sig_n-1']))
+    return params
+
+
+
 def annotate_yaxis(ax, params, linecolor='black', linewidth=1, fontsize=10):
     
     xloc = 1.02
@@ -1229,6 +1454,11 @@ def plot_legend(ax, info, step, loc='upper right'):
 
     
 def get_epsf(strain, conf=None, deltat=10):
+    """Get the strain at the end of the time step.
+    The strain is reported as the mean strain over the last `deltat` seconds.
+    If `conf` is provided, and contains a 'dt' key, the value of 'dt' is used for deltat.
+    If `conf` is not provided, or does not contain a 'dt' key, the default value of `deltat` is used.
+    """
     if conf is not None:
         deltat = conf['dt']
             
@@ -1241,7 +1471,12 @@ def get_epsf(strain, conf=None, deltat=10):
 
     
 def get_strainf(strain, conf=None, deltat=10):
-    if conf is not None:
+    """Get the strain at the end of the time step.
+    The strain is reported as the mean strain over the last `deltat` seconds.
+    If `conf` is provided, and contains a 'dt' key, the value of 'dt' is used for deltat.
+    If `conf` is not provided, or does not contain a 'dt' key, the default value of `deltat` is used.
+    """
+    if conf is not None and 'dt' in conf:
         deltat = conf['dt']
             
     deltat = dt.timedelta(seconds=deltat*60)
@@ -1270,6 +1505,35 @@ def get_raw_strain(strain, t0=0, dt=0.25):
     
     
 def get_key_index(lst, key, val):
+    """From a list of dictionaries, return the index of the first dictionary that has a key named
+    `key` with a value of `val`.
+    If no such dictionary is found, return None.
+    
+    Parameters
+    ----------
+    lst : list
+        A list of dictionaries.
+    key : str
+        The key to search for in the dictionaries.
+    val : any
+        The value to search for in the dictionaries.
+    
+    Returns
+    -------
+    int or None
+        The index of the first dictionary that has the key with the specified value, or None if no such dictionary is found.
+    
+        
+    Example
+    -------
+    >>> lst = [{'a': 1, 'b': 2}, {'a': 3, 'b': 4}, {'a': 5, 'b': 6}]
+    >>> get_key_index(lst, 'a', 3)
+    1
+    >>> get_key_index(lst, 'b', 6)
+    2
+    >>> get_key_index(lst, 'c', 7)
+    None
+    """
     key_list = [d[key] for d in lst]
     try:
         return key_list.index(val)
@@ -1423,19 +1687,50 @@ def plot_full_overview(lvdt_dat, pt100_dat, hobo_dat,
                  tend_list[-1] + dt.timedelta(seconds=24*3600)])
         
     #axs[0].fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S')
-    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    axs[0].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%m-%d'))
     axs[0].grid(True)
 
+    # determine and set the y-axis limits
     min_lim = np.sort([lvdt_dat[0].loc[lvdt_dat[0].index>=t0_list[0]].iloc[0][lvdt_col], 
                        lvdt_dat[0].loc[lvdt_dat[0].index<=tend_list[-1]].iloc[-1][lvdt_col]])
-                       
+
+    start_time = t0_list[0]
+    end_time = tend_list[-1]
+
+    # lvdt_dat is a dataframe with timestamps as index
+    # find the minimum and maximum values of the column specified by lvdt_col
+    # between the start_time and end_time
+
+    data = lvdt_dat[0].loc[(lvdt_dat[0].index >= start_time) & (lvdt_dat[0].index <= end_time)]
+    if lvdt_col in data.columns:
+        min_lim = np.sort([data[lvdt_col].min(), data[lvdt_col].max()])
+    else:
+        raise ValueError(f"Column '{lvdt_col}' not found in the DataFrame.")
+    
+    # if there are multiple DataFrames in lvdt_dat, find the min and max values across all of them
     if len(lvdt_dat)>1:
         for id in range(len(lvdt_dat)-1):
-            min_lim2 = np.sort([lvdt_dat[id].loc[lvdt_dat[id].index>=t0_list[0]].iloc[0][lvdt_col], 
-                                lvdt_dat[id].loc[lvdt_dat[id].index<=tend_list[-1]].iloc[-1][lvdt_col]])
+            data = lvdt_dat[id].loc[(lvdt_dat[id].index >= start_time) & (lvdt_dat[id].index <= end_time)]
+            if lvdt_col in data.columns:
+                min_lim2 = np.sort([data[lvdt_col].min(), data[lvdt_col].max()])
+            else:
+                raise ValueError(f"Column '{lvdt_col}' not found in the DataFrame {id}.")
             
+            # update the min_lim with the min and max values from the current DataFrame
             min_lim[0] = min([min_lim[0], min_lim2[0]])
             min_lim[1] = max([min_lim[1], min_lim2[1]])
+
+
+    # min_lim = np.sort([lvdt_dat[0].loc[lvdt_dat[0].index>=t0_list[0]].iloc[0][lvdt_col], 
+    #                    lvdt_dat[0].loc[lvdt_dat[0].index<=tend_list[-1]].iloc[-1][lvdt_col]])
+
+    # if len(lvdt_dat)>1:
+    #     for id in range(len(lvdt_dat)-1):
+    #         min_lim2 = np.sort([lvdt_dat[id].loc[lvdt_dat[id].index>=t0_list[0]].iloc[0][lvdt_col], 
+    #                             lvdt_dat[id].loc[lvdt_dat[id].index<=tend_list[-1]].iloc[-1][lvdt_col]])
+            
+    #         min_lim[0] = min([min_lim[0], min_lim2[0]])
+    #         min_lim[1] = max([min_lim[1], min_lim2[1]])
             
    
     min_lim[0] -= 1

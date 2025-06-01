@@ -32,6 +32,7 @@ dependencies = [
   "tables",
   "PyYAML",
   "PyQT5",
+  "scipy",
 ]
 
 # Uncomment and edit if you have non-Python package data to include:
