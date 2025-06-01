@@ -1,6 +1,14 @@
 import warnings
-import pdb
+
+try:
+    import ipdb
+except ImportError:
+    warnings.warn("ipdb not found, using pdb instead", ImportWarning)
+    import pdb as ipdb
+    # If ipdb is not available, fall back to pdb    
+
 import sys
+import matplotlib
 import numpy as np
 from numpy import ma
 import math
@@ -21,6 +29,16 @@ except ImportError:
         _decade_less   as decade_down
     )
 
+
+# define a safe is_decade wrapper
+def is_decade_safe(x, base=10):
+    if matplotlib.__version__ >= '3.8':
+        return is_decade(x, base)
+    else:
+        return is_decade(x)
+        
+        
+ 
 
 import logging
 
@@ -151,13 +169,17 @@ class SqrtLogLocator(Locator):
 
     def __init__(self, subs=(1.0,), sqrtthresh=None):
         """
-        place ticks on the location= base**i*subs[j]
+        place ticks on the location = base**i*subs[j]
         """
+        # test if sqrthresh is np.nan
         if sqrtthresh is not None:
-            self._base = 10.
-            self._sqrtthresh = sqrtthresh
+            if not np.isnan(sqrtthresh):
+                self._base = 10.
+                self._sqrt_threshold = sqrtthresh
+            else:
+                raise ValueError("sqrtthresh must be a float or int, not a nan value.")
         else:
-            raise ValueError("linthresh must be provided.")
+            raise ValueError("sqrtthresh must be provided.")
         if subs is None:
             self._subs = 'auto'
         else:
@@ -179,7 +201,7 @@ class SqrtLogLocator(Locator):
 
     def tick_values(self, vmin, vmax):
         b = self._base
-        t = self._sqrtthresh
+        t = self._sqrt_threshold
 
         logging.debug('vmin: %d, vmax: %d', vmin, vmax)
 
@@ -288,22 +310,22 @@ class SqrtLogLocator(Locator):
             vmin, vmax = vmax, vmin
 
         if True: #rcParams['axes.autolimit_mode'] == 'round_numbers':
-            if vmin > np.log10(self._sqrtthresh)-2:
+            if vmin > np.log10(self._sqrt_threshold)-2:
                 #if not is_decade(abs(vmin), b):
                 #    vmin = decade_down(vmin, b)
                 vmin = 0.
             else:
                 vmin = 0.
-            if not is_decade(abs(vmax), b):
+            if not is_decade_safe(abs(vmax), b):
                 if vmax < 0:
                     vmax = -decade_down(-vmax, b)
                 else:
                     vmax = decade_up(vmax, b)
 
             if vmin == vmax:
-                if vmin < np.log10(self._sqrtthresh):
+                if vmin < np.log10(self._sqrt_threshold):
                     vmin = 0.
-                    vmax = np.log10(self._sqrtthresh)+1
+                    vmax = np.log10(self._sqrt_threshold)+1
                 else:
                     vmin = decade_down(vmin, b)
                     vmax = decade_up(vmax, b)
@@ -379,10 +401,16 @@ class SqrtLogScale(mscale.ScaleBase):
         """
         if axis.axis_name == 'x':
             intersect = kwargs.pop('intersectx', 1.)
+            if intersect is None or np.isnan(intersect):
+                raise ValueError("intersectx must be provided")
+                        
             subs = kwargs.pop('subsx', None)
             nonpos = kwargs.pop('nonposx', 'mask')
         else:
             intersect = kwargs.pop('intersecty', 1.)
+            if intersect is None or np.isnan(intersect):
+                raise ValueError("intersectx must be provided")
+                        
             subs = kwargs.pop('subsy', None)
             nonpos = kwargs.pop('nonposy', 'mask')
 
@@ -452,14 +480,25 @@ def annotation_arrow( ax, xmin, xmax, y, text, linecolor='black', linewidth=1, f
                 bbox=dict(fc='w', ec='w', pad=1), zorder=-99)
                 
 def annotate_xaxis(ax, intersect=None, arrows='top', arrow_margin=1.03):
+    """Annotate the x-axis with sqrt and log sections.
+
+    <---- sqrt(t) --> <---- log(t) -------->
+    ----------------------------------------
+    |                                      |
+    |   Plot of time curve                 |
+    
+    If intersect is not None, it will draw a vertical line at the intersection point.
+    If arrows is 'top', it will draw arrows at the top of the plot.
+    If arrows is 'none', it will not draw arrows.
+    """
     xmin = ax.get_xlim()[0]
     xmax = ax.get_xlim()[1]
     
     if intersect is not None:
         if arrows is not None or arrows == 'none':
             if arrows == 'top':
-                annotation_arrow(ax,xmin,intersect,arrow_margin,'$\sqrt{t}$', xycoords=("data", "axes fraction"))
-                annotation_arrow(ax,intersect,xmax,arrow_margin,'$\log{(t)}$', xycoords=("data", "axes fraction"))    
+                annotation_arrow(ax,xmin,intersect,arrow_margin,'$\\sqrt{t}$', xycoords=("data", "axes fraction"))
+                annotation_arrow(ax,intersect,xmax,arrow_margin,'$\\log{(t)}$', xycoords=("data", "axes fraction"))    
         ax.axvline(x=intersect, ls='--', color='k', lw=1)
                 
 
